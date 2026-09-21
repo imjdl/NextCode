@@ -35,6 +35,20 @@
 
 ## 定制改动记录
 
+### 2026-09-21 新增「黑客」主题（hacker-dark）
+
+**背景**：主题此前只有 Zai Light / Zai Dark（+ system）。主题体系是"一套 ~140 个 `--color-*` token + 类名切换"，`@theme` 已注册这些变量，故新增主题只需提供一份 palette。
+
+**改动**（规则与验收见 `specs/hacker-theme.md`）：
+
+- `styles.css`：新增 `.theme-hacker-dark` 块（147 行、140 个 token 全覆盖）。用一次性脚本从 `.theme-zai-dark` 复制后按映射改值生成，避免手抄漏 token——脚本第一版把选择器行弄丢了、损坏了文件（丢 1302 行），已 `git checkout` 还原并改为带结构断言的版本，最终 diff 为纯新增 147 行。
+- 配色：近黑绿底（`#050a06`）+ 浅绿正文（`#b9f6c9`）+ 霓虹绿主色（`#2bff88`）；**保留语义色相**（错误红、警告琥珀、git/diff 增删、terminal 的 red/yellow/blue/magenta），避免纯绿 ANSI 让错误与 diff 不可读。
+- `useTheme.ts`：新增 id、归属 dark；并把 `applyTheme` 从"硬编码 3 个 classList.toggle"改成按 `THEME_CLASS_IDS` 注册表清理+切换（顺带解决"每加一个主题都要改这处"）。
+- 枚举点同步：侧栏主题菜单、`SettingsPage` 白名单、`test-actions` 类型、`webThemeSeed`（typecheck 抓出的漏点）、`openWorkspacePageThemeHero` 专属渐变、`packages/web/index.html` 首屏底色映射。
+- i18n：`sidebar.settings.theme.hacker-dark`（黑客 / Hacker）；`DESIGN.md` 的 Theme Modes 登记新主题与注册清单。
+
+**实测**（headless 起 Web 服务）：选黑客主题后 `class="dark theme-hacker-dark"`、`color-scheme: dark`、`--color-background=#050a06`、`--color-brand=#2bff88`、body 背景 `rgb(5,10,6)`、正文 `rgb(185,246,201)`；切回 zai-dark 后无 `theme-*` 类残留（验证注册表清理正确）。
+
 ### 2026-09-21 远程 workspace 用随包资源（不再依赖官方 CDN）
 
 **问题**：连接 SSH/WSL 远程报 `manifest not found for linux-x64: manifest-linux-x64.json`。远端部署默认从官方 CDN 取 `releases/<版本>/manifest-<platform>-<arch>.json`；定制版自增版本号（3.16.2）后官方 CDN 上不存在该版本，必然 404。仓库里其实有本地资源（`packages/desktop/mock-cdn/releases/<version>/`，由 `prepare:remote-assets` 生成），但**打包态不带**，只能走 CDN。

@@ -1279,6 +1279,7 @@ export function SettingsPage({
         value === "dark" ||
         value === "zai-light" ||
         value === "zai-dark" ||
+        value === "hacker-dark" ||
         value === "system"
       ) {
         runUserAction({

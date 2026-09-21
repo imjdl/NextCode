@@ -46,6 +46,9 @@ User-facing theme choices are:
 - System
 - Light Theme, backed by Zai Light
 - Dark Theme, backed by Zai Dark
+- Hacker Theme, backed by Hacker Dark (near-black green-tinted surfaces, neon-green brand; semantic hues for error/warning/git stay distinguishable)
+
+Each theme is a complete override of the same ~140 `--color-*` tokens (see `.theme-*` blocks in `packages/ui/src/styles.css`); utilities come from tokens registered in `@theme`, so a new theme only supplies values. A new theme must be registered in `packages/ui/src/useTheme.ts` (id, light/dark resolution, `THEME_CLASS_IDS`), the sidebar theme menu, the `SettingsPage` theme whitelist, `packages/web/src/webThemeSeed.ts`, and the first-paint color map in `packages/web/index.html`.
 
 Default light and dark CSS variables still exist as fallback foundations, but new UI should be validated against Zai Light and Zai Dark as the active light/dark experiences.
 

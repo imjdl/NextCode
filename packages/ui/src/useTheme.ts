@@ -1,10 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 
-export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "system";
+export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "hacker-dark" | "system";
 export type ResolvedTheme = "light" | "dark";
 
 const STORAGE_KEY = "zcode-theme";
 const BROWSER_THEME_SURFACE_ATTRIBUTE = "data-zcode-browser-theme-surface";
+/**
+ * 主题类名注册表：`theme-<id>` 由 styles.css 的主题块定义。
+ * applyTheme 按这份表清理旧类再挂当前类——新增主题只改这里，不散落在切换逻辑里。
+ */
+const THEME_CLASS_IDS = ["zai-light", "zai-dark", "hacker-dark"] as const;
+type ThemeClassId = (typeof THEME_CLASS_IDS)[number];
 
 function getSystemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -15,7 +21,7 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
     return getSystemTheme();
   }
 
-  return theme === "dark" || theme === "zai-dark" ? "dark" : "light";
+  return theme === "dark" || theme === "zai-dark" || theme === "hacker-dark" ? "dark" : "light";
 }
 
 export function normalizeThemePreference(theme: Theme): Theme {
@@ -57,15 +63,17 @@ function syncBrowserThemeSurface(resolved: ResolvedTheme) {
 
 export function applyTheme(theme: Theme) {
   const resolved = resolveTheme(theme);
-  const appliedTheme =
+  const appliedTheme: ThemeClassId =
     theme === "system"
       ? resolved === "dark"
         ? "zai-dark"
         : "zai-light"
-      : normalizeThemePreference(theme);
-  document.documentElement.classList.toggle("dark", resolved === "dark");
-  document.documentElement.classList.toggle("theme-zai-light", appliedTheme === "zai-light");
-  document.documentElement.classList.toggle("theme-zai-dark", appliedTheme === "zai-dark");
+      : (normalizeThemePreference(theme) as ThemeClassId);
+  const root = document.documentElement;
+  root.classList.toggle("dark", resolved === "dark");
+  for (const themeClassId of THEME_CLASS_IDS) {
+    root.classList.toggle(`theme-${themeClassId}`, appliedTheme === themeClassId);
+  }
   syncBrowserThemeSurface(resolved);
 }
 
@@ -75,6 +83,7 @@ function isTheme(value: string | null): value is Theme {
     value === "dark" ||
     value === "zai-light" ||
     value === "zai-dark" ||
+    value === "hacker-dark" ||
     value === "system"
   );
 }

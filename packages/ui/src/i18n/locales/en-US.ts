@@ -1979,6 +1979,7 @@ const enUS: Record<string, string> = {
   "sidebar.settings.interfaceZoom": "Interface zoom",
   "sidebar.settings.theme.light": "Light theme",
   "sidebar.settings.theme.zai-light": "Light theme",
+  "sidebar.settings.theme.hacker-dark": "Hacker",
   "sidebar.settings.theme.zai-dark": "Dark theme",
   "sidebar.settings.theme.dark": "Dark theme",
   "settings.migration.title": "Migration",

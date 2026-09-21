@@ -303,6 +303,11 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                       id: "sidebar.settings.theme.zai-light",
                     })}
                   </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="hacker-dark">
+                    {intl.formatMessage({
+                      id: "sidebar.settings.theme.hacker-dark",
+                    })}
+                  </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>

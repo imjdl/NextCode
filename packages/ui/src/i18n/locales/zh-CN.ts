@@ -1868,6 +1868,7 @@ const zhCN: Record<string, string> = {
   "sidebar.settings.interfaceZoom": "界面缩放",
   "sidebar.settings.theme.light": "浅色主题",
   "sidebar.settings.theme.zai-light": "浅色主题",
+  "sidebar.settings.theme.hacker-dark": "黑客",
   "sidebar.settings.theme.zai-dark": "深色主题",
   "sidebar.settings.theme.dark": "深色主题",
   "settings.migration.title": "迁移",

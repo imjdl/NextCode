@@ -21,6 +21,8 @@
         const BROWSER_THEME_COLORS = {
           dark: "#161616",
           light: "#f8f8f8",
+          // 黑客主题底色；不在这里登记会在刷新首帧闪一帧 zai-dark 的 #161616。
+          "theme-hacker-dark": "#050a06",
         };
 
         const normalizeResolvedTheme = (theme) => {
@@ -28,6 +30,7 @@
           if (theme === "light") return "light";
           if (theme === "zai-dark") return "dark";
           if (theme === "zai-light") return "light";
+          if (theme === "hacker-dark") return "theme-hacker-dark";
           return theme;
         };
 
