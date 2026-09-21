@@ -30,9 +30,34 @@
 | 2026-09-21（重建） | 3.14.0 | `ZCode-3.14.0-win-x64.exe` | 关闭官方渠道自动更新/强制升级后重打；首版安装后会被官方后端强制升级覆盖，勿再使用首版产物 |
 | 2026-09-21 | 3.15.0 | `ZCode-3.15.0-win-x64.exe` | 侧栏激活项自动揭示 + 输入框提示词增强 + 放宽内置安全声明（见下） |
 | 2026-09-21 | 3.16.0 | `ZCode-3.16.0-win-x64.exe` | 去远程控制 + 遥测编译期硬关断（见下）；建议用此版替换 3.15.0 |
-| 2026-09-21 | 3.16.1 | `ZCode-3.16.1-win-x64.exe` | 修复侧栏项目自动揭示在 Windows 上失效 + 提示词增强点击报错；**新增：激活项目自动置顶**（见下） |
+| 2026-09-21 | 3.16.1 | `ZCode-3.16.1-win-x64.exe` | 修复侧栏项目自动揭示失效 + 提示词增强点击报错；新增激活项目自动置顶、Web/手机端布局适配、桌面端 Web 远控面板（见下） |
+| 2026-09-21 | 3.16.2 | `ZCode-3.16.2-win-x64.exe` | 修复手机图标状态色（开启服务变绿）与手机端任务列表背景透明（见下） |
 
 ## 定制改动记录
+
+### 2026-09-21 修复：手机图标状态色 与 手机端抽屉背景透明
+
+**问题 1：开启服务后手机图标不变色**（`packages/ui/src/WorkspaceSidebarFooter.tsx`）
+- 图标原本无状态：footer 不感知服务状态。现在 footer 镜像 main 的 `running`（面板回调 + 窗口 focus 时补查一次，覆盖服务自行退出），开启时 `Smartphone` 加 `text-success`（主题里 `--color-success` 为绿色），并加 `data-testid="web-remote-control-indicator"` / `data-running` 便于排查。
+
+**问题 2：手机端任务列表背景透明、与欢迎页叠字**（`app-shell/WorkspaceShellLayout.tsx`）
+- 根因：桌面布局里侧栏是**透明**的、靠下层 shell 底色透出；我把它改成覆盖抽屉时没给底色，于是列表文字与下层欢迎页/输入框叠在一起。
+- 首轮误用 `bg-background-alt`，实测计算值为 `oklab(… / 0.6)`——该 token 本身就是 `color-mix(..., transparent)`，**仍然半透明**；改用 `bg-background`（四个主题下均为不透明实色），实测计算值 `rgb(22, 22, 22)`，并补 `border-r border-border` 与阴影。
+- 验证：手机尺寸（393×852）headless 打开抽屉，`getComputedStyle` 取面板底色为不透明，`elementFromPoint` 命中抽屉内部（点击不再穿透到下层），截图确认无叠字。
+
+### 2026-09-21 桌面端内置 Web 远控面板（手机扫码访问）
+
+**需求**：用户名旁手机图标 → 控制面板 → 一键开启 Web 服务 → 展示二维码 → 手机扫码访问；支持指定内网 IP。规则与验收见 `specs/desktop-web-remote-panel.md`。
+
+**实现**（把已验证的手工流程产品化）：
+
+- `packages/desktop/src/web-remote/server/index.ts` + tsup 入口 `web-remote/server`：与 `packages/server/entry-http.ts` 同构的独立服务入口（同 `createHttpServer` + `createLocalServices`），从环境变量读取 host/port/token/静态根，就绪后向 stdout 打 `zcode-web-remote-ready`。
+- `packages/desktop/src/main/webRemoteControl.ts`：main 侧唯一所有者——列本机 IPv4（标注虚拟网卡并推荐第一张非虚拟网卡）、端口占用预检、随机 token、`electron.utilityProcess.fork` 起停子进程、状态与 lastError。**注意用 utilityProcess 而不是 `child_process.fork`**：后者会用 Electron 二进制再起一个 app 实例。
+- 命令通道：`DesktopCommandIds.WebRemote{ListAddresses,GetState,Start,Stop}`；`ExecuteDesktopCommand` 扩展为可携带 payload（保持只传命令 id 的旧调用兼容），并加 `isWebRemoteState` 运行时校验。
+- UI：`packages/ui/src/settings/WebRemoteControlDialog.tsx`（开关 / IP 选择 / 端口 / 二维码 / 复制链接 / 风险提示），入口是 footer 用户名旁的手机图标（仅桌面端渲染）。
+- 打包：`scripts/prepare-web-remote-web.mjs` 构建 Web 产物并复制到 `resources/web-remote-web`，electron-builder `extraResources` 随包分发；已挂入 `prepare:runtime-assets`。
+
+**取舍（记录在案）**：服务跑在独立运行时里（与"手机 attach 桌面已有 Host"的上游设计不同），与桌面窗口共享 `~/.zcode` 数据；改成 attach 需要移植上游 attachment/owner-lease 链路，属后续工作。不启用任何外网 relay。
 
 ### 2026-09-21 Web/手机端布局适配（3.16.1 内的追加改动）
 

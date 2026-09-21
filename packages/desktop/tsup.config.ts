@@ -142,6 +142,8 @@ export default defineConfig([
       "main/zcodeDataSizeWorker": "src/main/zcodeDataSizeWorker.ts",
       // 资源管理器「存储」tab 的扫描 Worker：main 持有 StorageService，遍历放独立线程，供 new Worker(new URL()) 解析。
       "main/storageScanWorker": "src/main/storageScanWorker.ts",
+      // Web 远控服务：由 main 用 utilityProcess.fork 启动的独立进程入口（见 src/web-remote/server）。
+      "web-remote/server": "src/web-remote/server/index.ts",
     },
     outDir: "out",
     format: "esm",

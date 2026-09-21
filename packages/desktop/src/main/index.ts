@@ -1,4 +1,6 @@
 import { createLocalTtftExporter } from "./localTtftExporter.js";
+import { createWebRemoteControl } from "./webRemoteControl.js";
+import { existsSync } from "node:fs";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";
@@ -752,6 +754,25 @@ const readHelpConfig = createDesktopHelpConfigReader({
 });
 // 定制版：不再请求 /api/v1/client/configs（服务端灰度旗标）。上游用同一个 fetcher 驱动
 // desktopContextPrompt 与 rendererActionTrace 两个开关，定制版整体移除，本地行为不再被远端改写。
+// Web 远控服务：main 侧唯一所有者，按需 fork 独立进程（见 webRemoteControl.ts）。
+// static root 解析顺序：环境变量 → 打包态 resources/web-remote-web → 开发态仓库内 packages/web/dist。
+const webRemoteControl = createWebRemoteControl({
+  logger,
+  resolveStaticRoot: () => {
+    const override = process.env.ZCODE_WEB_REMOTE_STATIC_ROOT?.trim();
+    if (override) {
+      return override;
+    }
+    const packagedRoot = join(process.resourcesPath, "web-remote-web");
+    if (existsSync(join(packagedRoot, "index.html"))) {
+      return packagedRoot;
+    }
+    const devRoot = join(app.getAppPath(), "..", "..", "web", "dist");
+    return existsSync(join(devRoot, "index.html")) ? devRoot : null;
+  },
+  resolveServerEntry: () => join(import.meta.dirname, "../web-remote/server.js"),
+});
+
 const localTtftExporter = createLocalTtftExporter({
   env: { ...hostProcessLocalEnv, ...process.env },
   version: ZCODE_VERSION || app.getVersion(),
@@ -1283,10 +1304,12 @@ function confirmAppQuit(originWindow?: BrowserWindow | null) {
 async function executeDesktopCommandForApp(
   command: Parameters<typeof executeDesktopCommand>[0]["command"],
   senderWindow?: BrowserWindow | null,
+  payload?: unknown,
 ) {
   return executeDesktopCommand({
     fetchHelpConfig: readHelpConfig,
     command,
+    payload,
     senderWindow,
     logger,
     updateZCodeStdioTapDevMenuState,
@@ -1304,6 +1327,7 @@ async function executeDesktopCommandForApp(
     },
     credentialsDir: getCredentialsDir(),
     currentApplicationLocale,
+    webRemoteControl: webRemoteControl,
   });
 }
 

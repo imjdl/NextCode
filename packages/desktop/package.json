@@ -24,7 +24,8 @@
     "audit:bundle-size": "node scripts/audit-bundle-size.mjs",
     "postinstall": "node scripts/node-pty-rebuild.mjs",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "prepare:web-remote-web": "node scripts/prepare-web-remote-web.mjs"
   },
   "dependencies": {
     "@arms/rum-electron": "^0.0.3",

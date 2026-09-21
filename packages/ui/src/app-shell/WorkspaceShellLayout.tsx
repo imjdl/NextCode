@@ -1572,7 +1572,12 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             isSidebarPanelVisible ? "opacity-100" : "pointer-events-none opacity-0",
             // 窄视口：侧栏改为覆盖抽屉，脱离 flex 流并压在内容之上，宽度由 CSS 变量给到 min(85vw,320px)，
             // 因此不再受 max-w-[50%] 限制、也不会挤压聊天列（聊天列 min-w-[320px] 曾导致内容被裁切）。
-            isNarrowViewport ? "absolute inset-y-0 left-0 z-40 shadow-xl" : "relative max-w-[50%]",
+            // 抽屉必须自带不透明底色：桌面布局里侧栏透明、靠下层 shell 底色透出；
+            // 覆盖态若沿用透明背景（background-alt 本身就是 color-mix(... , transparent)），
+            // 列表文字会与下层欢迎页/输入框叠在一起。这里用 background（各主题均为不透明实色）。
+            isNarrowViewport
+              ? "absolute inset-y-0 left-0 z-40 border-r border-border bg-background shadow-xl"
+              : "relative max-w-[50%]",
           )}
         >
           <aside

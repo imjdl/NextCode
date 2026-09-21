@@ -136,6 +136,7 @@ export {
   DesktopCommandIds,
   buildLocalMediaPreviewUrl,
   createOpenInEditorRemoteTarget,
+  isWebRemoteState,
 } from "./platform.js";
 export type {
   ArmsCustomEventPayload,
@@ -196,6 +197,9 @@ export type {
   PrintPageToPdfResult,
   DesktopCommandId,
   CuaOsSupport,
+  WebRemoteAddressInfo,
+  WebRemoteState,
+  WebRemoteStartRequest,
   DesktopWindowChromeState,
   DesktopTitleBarTheme,
   DockerContainerInfo,

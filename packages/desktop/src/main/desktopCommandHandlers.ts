@@ -10,6 +10,7 @@ import {
   type AppSettings,
   type DesktopCommandId,
   type Locale,
+  type WebRemoteStartRequest,
   resolveRuntimeZCodeEndpointOrigin,
   ZCODE_ENV,
   ZCODE_PRODUCT_FLAVOR,
@@ -22,6 +23,7 @@ import {
 } from "@zcode/shared";
 import { readZCodeStdioTapDevState, setZCodeStdioTapDevEnabled } from "@zcode/services/node";
 import { showAboutDialog } from "./about.js";
+import { DEFAULT_WEB_REMOTE_PORT, type WebRemoteControl } from "./webRemoteControl.js";
 import { checkForUpdateMenuClick } from "./autoUpdater.js";
 import { exportLogs } from "./exportLogs.js";
 import { openResourceManager } from "./resourceManagerWindow.js";
@@ -456,6 +458,8 @@ async function resolveCurrentZCodeEndpointOrigin(settingService: {
 
 export async function executeDesktopCommand(options: {
   command: DesktopCommandId;
+  /** 命令参数（如 Web 远控的 host/port）。 */
+  payload?: unknown;
   fetchHelpConfig?: () => Promise<unknown>;
   senderWindow?: BrowserWindow | null;
   logger: {
@@ -476,6 +480,8 @@ export async function executeDesktopCommand(options: {
   zcodeEndpointEnvBaseOrigin?: string | null;
   credentialsDir: string;
   currentApplicationLocale: Locale;
+  /** Web 远控服务管理器（main 侧唯一所有者）。 */
+  webRemoteControl?: WebRemoteControl | null;
 }) {
   const targetWindow = resolveTargetWindow(options.senderWindow);
   options.logger.info(
@@ -660,5 +666,21 @@ export async function executeDesktopCommand(options: {
       return;
     case DesktopCommandIds.GetCuaOsSupport:
       return resolveCuaOsSupport();
+    case DesktopCommandIds.WebRemoteListAddresses:
+      return options.webRemoteControl?.listAddresses() ?? [];
+    case DesktopCommandIds.WebRemoteGetState:
+      return options.webRemoteControl?.getState() ?? null;
+    case DesktopCommandIds.WebRemoteStart: {
+      const request = options.payload as Partial<WebRemoteStartRequest> | undefined;
+      if (!options.webRemoteControl) {
+        return null;
+      }
+      return await options.webRemoteControl.start({
+        host: typeof request?.host === "string" ? request.host : "0.0.0.0",
+        port: Number(request?.port) || DEFAULT_WEB_REMOTE_PORT,
+      });
+    }
+    case DesktopCommandIds.WebRemoteStop:
+      return options.webRemoteControl?.stop() ?? null;
   }
 }

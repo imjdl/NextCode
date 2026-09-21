@@ -1098,7 +1098,8 @@ export interface PlatformChannelMap {
     response: void;
   };
   [PlatformChannels.ExecuteDesktopCommand]: {
-    request: DesktopCommandId;
+    // 允许携带命令参数（如 Web 远控的 host/port）；旧调用只传命令 id，保持兼容。
+    request: DesktopCommandId | { command: DesktopCommandId; payload?: unknown };
     // 返回值直通 main 进程 handler 的 return（GetCuaOsSupport 返回 CuaOsSupport），
     // 与 renderer 侧 IPlatformService.executeDesktopCommand 的 Promise<unknown> 对齐。
     response: unknown;

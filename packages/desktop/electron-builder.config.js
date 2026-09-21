@@ -567,6 +567,12 @@ export default {
   },
   extraResources: [
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
+    {
+      // Web 远控服务托管的 Web 产物：主进程按 process.resourcesPath/web-remote-web 解析。
+      // 由 packages/desktop/scripts/prepare-web-remote-web.mjs 构建并复制；缺失时面板会明确报错。
+      from: "resources/web-remote-web",
+      to: "web-remote-web",
+    },
     ...(targetPlatform.os === "darwin"
       ? [
           {

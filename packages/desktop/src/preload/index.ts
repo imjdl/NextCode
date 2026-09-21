@@ -797,9 +797,12 @@ contextBridge.exposeInMainWorld("zcode", {
       path,
       options,
     }),
-  /** 执行桌面窗口级命令 */
-  executeDesktopCommand: (command: DesktopCommandId) =>
-    ipcRenderer.invoke(PlatformChannels.ExecuteDesktopCommand, command),
+  /** 执行桌面窗口级命令（可携带命令参数，如 Web 远控的 host/port） */
+  executeDesktopCommand: (command: DesktopCommandId, payload?: unknown) =>
+    ipcRenderer.invoke(
+      PlatformChannels.ExecuteDesktopCommand,
+      payload === undefined ? command : { command, payload },
+    ),
   /** 同步应用菜单语言 */
   setApplicationLocale: (locale: Locale) =>
     ipcRenderer.invoke(PlatformChannels.SetApplicationLocale, locale),

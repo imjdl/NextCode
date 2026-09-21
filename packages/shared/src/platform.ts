@@ -491,7 +491,61 @@ export const DesktopCommandIds = {
   ResetZCodeEndpoint: "resetZCodeEndpoint",
   ClearAllData: "clearAllData",
   GetCuaOsSupport: "getCuaOsSupport",
+  WebRemoteListAddresses: "webRemoteListAddresses",
+  WebRemoteGetState: "webRemoteGetState",
+  WebRemoteStart: "webRemoteStart",
+  WebRemoteStop: "webRemoteStop",
 } as const;
+
+/** 本机可用于对外提供 Web 远控的 IPv4 地址。 */
+export interface WebRemoteAddressInfo {
+  /** 绑定用的地址；"0.0.0.0" 表示所有网卡。 */
+  address: string;
+  /** 网卡名（如 "WLAN"），"0.0.0.0" 项为空字符串。 */
+  interfaceName: string;
+  /** 虚拟网卡（VMware/Hyper-V/VirtualBox 等）；面板默认不选它，因为手机通常不可达。 */
+  virtual: boolean;
+  /** 是否建议作为默认项（第一张非虚拟网卡）。 */
+  recommended: boolean;
+}
+
+/** Web 远控服务状态。token 与服务同源，仅本机 renderer 可见。 */
+export interface WebRemoteState {
+  running: boolean;
+  /** 监听地址（用户选定），"0.0.0.0" 表示所有网卡。 */
+  host: string;
+  port: number;
+  /** 运行时 token；未运行时为空串。 */
+  token: string;
+  /** 手机应打开的完整链接；未运行时为空串。 */
+  url: string;
+  /** 上次启动失败原因；成功启动后清空。 */
+  lastError: string;
+}
+
+export interface WebRemoteStartRequest {
+  host: string;
+  port: number;
+}
+
+/**
+ * 运行时校验 main 返回的 Web 远控状态。
+ * IPC 返回值是 unknown，面板不能直接断言；缺字段时按"未知"处理，避免把脏数据当服务状态展示。
+ */
+export function isWebRemoteState(value: unknown): value is WebRemoteState {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<WebRemoteState>;
+  return (
+    typeof candidate.running === "boolean" &&
+    typeof candidate.host === "string" &&
+    typeof candidate.port === "number" &&
+    typeof candidate.token === "string" &&
+    typeof candidate.url === "string" &&
+    typeof candidate.lastError === "string"
+  );
+}
 
 export type DesktopCommandId = (typeof DesktopCommandIds)[keyof typeof DesktopCommandIds];
 
@@ -950,8 +1004,9 @@ export interface IPlatformService {
 
   /** 执行桌面窗口级命令（标题栏菜单、缩放、窗口控制等）。
    *  返回值直通 main 进程 handler 的 return（大多数命令无返回值；
-   *  GetCuaOsSupport 返回 CuaOsSupport），因此放宽为 unknown。 */
-  executeDesktopCommand(command: DesktopCommandId): Promise<unknown>;
+   *  GetCuaOsSupport 返回 CuaOsSupport），因此放宽为 unknown。
+   *  payload 供需要参数的命令使用（如 Web 远控的 host/port）。 */
+  executeDesktopCommand(command: DesktopCommandId, payload?: unknown): Promise<unknown>;
 
   /** 同步应用菜单语言，驱动 main 进程重建原生菜单 */
   setApplicationLocale(locale: Locale): Promise<void>;

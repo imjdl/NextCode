@@ -74,6 +74,7 @@ export function registerPlatformIpcHandlers(options: {
   executeDesktopCommand: (
     command: DesktopCommandId,
     senderWindow?: BrowserWindow | null,
+    payload?: unknown,
   ) => Promise<unknown>;
   acknowledgePostUpdateReleaseNotes: (version: string) => Promise<void>;
   syncActiveTaskSession: (windowId: number, sessionId: string | null) => void;
@@ -396,15 +397,28 @@ export function registerPlatformIpcHandlers(options: {
       openInEditor(payload.editorId, payload.path, payload.options),
   );
 
-  ipcMain.handle(PlatformChannels.ExecuteDesktopCommand, async (event, command: string) => {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender);
-    const isKnownCommand = (Object.values(DesktopCommandIds) as string[]).includes(command);
-    if (!isKnownCommand) {
-      options.logger.warn("[desktop-command] invalid command:", command);
-      return;
-    }
+  ipcMain.handle(
+    PlatformChannels.ExecuteDesktopCommand,
+    async (event, request: string | { command?: unknown; payload?: unknown }) => {
+      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+      const command = typeof request === "string" ? request : request?.command;
+      const payload = typeof request === "string" ? undefined : request?.payload;
+      if (typeof command !== "string") {
+        options.logger.warn("[desktop-command] invalid request:", request);
+        return;
+      }
+      const isKnownCommand = (Object.values(DesktopCommandIds) as string[]).includes(command);
+      if (!isKnownCommand) {
+        options.logger.warn("[desktop-command] invalid command:", command);
+        return;
+      }
 
-    // 返回值直通 renderer 的 executeDesktopCommand promise（GetCuaOsSupport 依赖此行为）。
-    return await options.executeDesktopCommand(command as DesktopCommandId, senderWindow);
-  });
+      // 返回值直通 renderer 的 executeDesktopCommand promise（GetCuaOsSupport / Web 远控状态依赖此行为）。
+      return await options.executeDesktopCommand(
+        command as DesktopCommandId,
+        senderWindow,
+        payload,
+      );
+    },
+  );
 }

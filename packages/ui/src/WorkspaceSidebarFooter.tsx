@@ -3,6 +3,7 @@ import type { Locale, UserInfo } from "@zcode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
 import {
   DesktopCommandIds,
+  isWebRemoteState,
   TID_LOGIN_MENU_ITEM,
   TID_LOGIN_TRIGGER,
   TID_LOGOUT_BUTTON,
@@ -34,11 +35,13 @@ import {
   Maximize,
   Palette,
   Settings,
+  Smartphone,
   User,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { WebRemoteControlDialog } from "@/settings/WebRemoteControlDialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
@@ -171,6 +174,28 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
       : intl.formatMessage({ id: "settings.title" });
   const usageButtonClick = onUsageClick ?? onSettingsButtonClick;
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [webRemoteOpen, setWebRemoteOpen] = useState(false);
+  // Web 远控服务是否在跑：面板开启状态由 main 持有，这里只镜像用于图标着色。
+  // 除面板回调外，窗口重新获得焦点时补一次查询，覆盖"服务自行退出"等面板不可见时的状态变化。
+  const [webRemoteRunning, setWebRemoteRunning] = useState(false);
+  const syncWebRemoteRunning = useCallback(async () => {
+    try {
+      const current = await platform.executeDesktopCommand(DesktopCommandIds.WebRemoteGetState);
+      setWebRemoteRunning(isWebRemoteState(current) && current.running);
+    } catch {
+      // 平台不支持该命令（Web/手机端）时保持默认未开启态，不打扰用户。
+      setWebRemoteRunning(false);
+    }
+  }, [platform]);
+  useEffect(() => {
+    if (!isDesktop) {
+      return undefined;
+    }
+    void syncWebRemoteRunning();
+    const onFocus = () => void syncWebRemoteRunning();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [isDesktop, syncWebRemoteRunning]);
   const [desktopZoomLevel, setDesktopZoomLevel] = useState(0);
   const runDesktopZoomCommand = useCallback(
     (command: (typeof DesktopCommandIds)["ZoomIn" | "ZoomOut" | "ResetZoom"]) => {
@@ -363,6 +388,26 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* 手机访问入口：只在桌面端出现（Web/手机端没有可管理的本地服务）。 */}
+          {isDesktop ? (
+            <ControlHintTooltip title={intl.formatMessage({ id: "webRemote.title" })}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-lg"
+                data-testid="web-remote-control-entry"
+                aria-label={intl.formatMessage({ id: "webRemote.title" })}
+                onClick={() => setWebRemoteOpen(true)}
+              >
+                {/* 服务开启中图标变绿：手机端能访问本机的可视状态提示。 */}
+                <Smartphone
+                  className={cn("size-4", webRemoteRunning && "text-success")}
+                  data-testid="web-remote-control-indicator"
+                  data-running={webRemoteRunning ? "true" : "false"}
+                />
+              </Button>
+            </ControlHintTooltip>
+          ) : null}
           <ControlHintTooltip title={settingsButtonLabel}>
             <Button
               type="button"
@@ -378,6 +423,13 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           </ControlHintTooltip>
         </div>
       </div>
+      {isDesktop ? (
+        <WebRemoteControlDialog
+          open={webRemoteOpen}
+          onOpenChange={setWebRemoteOpen}
+          onStateChange={(next) => setWebRemoteRunning(next.running)}
+        />
+      ) : null}
     </footer>
   );
 });
