@@ -141,6 +141,7 @@ const zhCN: Record<string, string> = {
   "chat.composer.addWorkflow": "工作流",
   "chat.composer.attachment": "附件",
   "composer.promptEnhance.tooltip": "优化提示词",
+  "composer.promptEnhance.staleDraft": "提示词在你编辑期间已变更，未覆盖",
   "composer.promptEnhance.failed": "提示词优化失败，请重试",
   "chat.permission.feedback.ariaLabel": "拒绝时给模型的可选反馈",
   "chat.permission.feedback.placeholder": "告诉模型接下来应该怎么做...",

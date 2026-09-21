@@ -101,7 +101,7 @@ import {
   WORKSPACE_TASK_PAGE_SIZE,
   type WorkspaceTaskVisibleLimitByKey,
 } from "@/lib/workspaceTaskPagination.js";
-import { partitionWorkspaceTabsByPurpose } from "@/lib/workspacePurpose.js";
+import { partitionWorkspaceTabsByPurpose, getWorkspacePurpose } from "@/lib/workspacePurpose.js";
 import {
   areAllGroupedTaskGroupsExpanded,
   pruneCollapsedGroupedTaskGroupIds,
@@ -203,6 +203,35 @@ function WorkspaceDragOverlay({ tab, width }: { tab: WorkspaceTabState; width: n
 export interface SidebarFileTreeOpenRequest {
   id: number;
   target: SidebarFileTreeTarget;
+}
+
+/**
+ * 项目卡片「已对齐顶部」的判定容差（px）：小于该值视作已在顶部，不再触发滚动。
+ */
+const WORKSPACE_CARD_TOP_ALIGN_THRESHOLD_PX = 8;
+
+/**
+ * 在侧栏滚动容器内按 workspacePath 找项目卡片头部。
+ *
+ * 不能把路径拼进 CSS 选择器：Windows 路径含反斜杠（`E:\Projects\ZCode`），
+ * 在属性选择器里会被当成 CSS 转义前缀吞掉（`\P` → `P`），选择器静默匹配不到任何元素，
+ * 表现为「激活项目后列表不滚动」且无报错。这里只用安全前缀做选择器，
+ * 再用属性值精确比较（`CSS.escape` 亦可用，但直接比较更省一次依赖与转义心算）。
+ */
+function findWorkspaceCardElement(
+  scrollNode: HTMLElement,
+  workspacePath: string,
+): HTMLElement | null {
+  const expectedTestId = testId(TID_WORKSPACE_ITEM, workspacePath);
+  const candidates = scrollNode.querySelectorAll<HTMLElement>(
+    `[data-testid^="${TID_WORKSPACE_ITEM}-"]`,
+  );
+  for (const candidate of candidates) {
+    if (candidate.getAttribute("data-testid") === expectedTestId) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 function resolveSidebarTaskViewMode(params: {
@@ -763,48 +792,83 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       selectWorkspaceZCodeState(state, workspacePath, workspaceIdentity).activeTaskId,
   );
 
-  // 激活旧项目后自动揭示：项目卡片可能被折叠或落在长列表可视区外，
-  // 先确保所属项目展开（行级滚动由 TaskList 在挂载后完成），再把项目卡片头部滚入视口。
-  const lastRevealedWorkspaceKeyRef = useRef<string | null>(null);
+  // 激活项目后：先把该项目置顶到项目列表首位，再确保展开，最后把卡片头部对齐到视口顶部。
+  // 三件事必须按序完成，所以放在同一个 effect 里，用同一个 ref 记录"本次激活已处理完毕"：
+  // 置顶/展开都会改状态并触发重跑，未走到最后一步就不记录，重跑后继续下一步，避免
+  // 在旧布局位置滚动完又被重排打乱。
+  const lastRevealRef = useRef<{ workspaceKey: string; taskId: string | null } | null>(null);
   useEffect(() => {
-    if (!workspacePath || taskViewMode !== "workspace") {
+    if (!workspacePath) {
       return;
     }
-    const revealKey = `${buildTaskWorkspaceKey(workspacePath, workspaceIdentity)}\u0000${activeTaskId ?? ""}`;
-    if (revealKey === lastRevealedWorkspaceKeyRef.current) {
+    const workspaceKey = buildTaskWorkspaceKey(workspacePath, workspaceIdentity);
+    const previous = lastRevealRef.current;
+    const workspaceChanged = previous?.workspaceKey !== workspaceKey;
+    if (!workspaceChanged) {
+      // 同一个项目内切换任务：卡片位置不动，行级滚动交给 TaskList。
+      // 否则把卡片头部顶到顶部会把刚点击的任务行推出视口，反而要再滚一次。
+      if (previous && previous.taskId !== activeTaskId) {
+        lastRevealRef.current = { workspaceKey, taskId: activeTaskId ?? null };
+      }
       return;
     }
+    const activeIndex = workspaceTabs.findIndex(
+      (tab) => buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity) === workspaceKey,
+    );
+    const activeTab = activeIndex >= 0 ? workspaceTabs[activeIndex] : undefined;
+    const isProjectTab =
+      activeTab !== undefined && getWorkspacePurpose(activeTab) !== "conversation";
+    const firstProjectIndex = workspaceTabs.findIndex(
+      (tab) => getWorkspacePurpose(tab) !== "conversation",
+    );
+    // 1) 项目置顶：顺序来自手动拖拽（随 tab 顺序持久化），不置顶时用户每次都要在长列表里翻找。
+    //    拖拽进行中不改顺序，避免和 dnd-kit 的测量/预览打架。
+    if (
+      isProjectTab &&
+      !activeWorkspaceDragId &&
+      firstProjectIndex >= 0 &&
+      activeIndex > firstProjectIndex
+    ) {
+      reorderWorkspaceTabs(activeIndex, firstProjectIndex);
+      return;
+    }
+    // 2) 展开：折叠态下卡片内容与位置都会变，等展开后的渲染再定位。
     if (!expandedWorkspacePaths.has(workspacePath)) {
-      // 不记已揭示：展开会让本 effect 重跑，届时再执行滚动定位。
       expandAllWorkspaceTabs([workspacePath]);
       return;
     }
-    const cardElement = workspaceScrollRef.current?.querySelector<HTMLElement>(
-      `[data-testid="${testId(TID_WORKSPACE_ITEM, workspacePath)}"]`,
-    );
-    const scrollNode = workspaceScrollRef.current;
-    if (!cardElement || !scrollNode) {
-      // 卡片尚未挂载（如项目区收起）时不记已揭示，等渲染完成后重试。
+    // 3) 滚动揭示：只在项目列表视图有意义（其它视图不渲染项目卡片）。
+    if (taskViewMode !== "workspace") {
+      lastRevealRef.current = { workspaceKey, taskId: activeTaskId ?? null };
       return;
     }
+    const scrollNode = workspaceScrollRef.current;
+    if (!scrollNode) {
+      return;
+    }
+    const cardElement = findWorkspaceCardElement(scrollNode, workspacePath);
+    if (!cardElement) {
+      // 卡片尚未挂载（如项目区收起）时不记录，等渲染完成后重试。
+      return;
+    }
+    lastRevealRef.current = { workspaceKey, taskId: activeTaskId ?? null };
     const cardRect = cardElement.getBoundingClientRect();
     const scrollRect = scrollNode.getBoundingClientRect();
-    // 判定的是卡片头部（data-testid 挂在 CollapsibleTrigger 上，任务列表是它的兄弟节点）：
-    // 头部可见时用户已能看到所属项目，行级滚动交给 TaskList，避免点击卡片内的行时把头部又顶到最上方。
-    const fullyVisible = cardRect.top >= scrollRect.top && cardRect.bottom <= scrollRect.bottom;
-    lastRevealedWorkspaceKeyRef.current = revealKey;
-    if (fullyVisible) {
+    // 已在顶部附近时不做无谓滚动，避免同一位置重复触发平滑滚动。
+    if (Math.abs(cardRect.top - scrollRect.top) <= WORKSPACE_CARD_TOP_ALIGN_THRESHOLD_PX) {
       return;
     }
-    // 需要滚动时把项目卡片对齐到视口顶部，与用户“跑到最上边”的预期一致。
     cardElement.scrollIntoView({ block: "start", behavior: "smooth" });
   }, [
     activeTaskId,
+    activeWorkspaceDragId,
     expandAllWorkspaceTabs,
     expandedWorkspacePaths,
+    reorderWorkspaceTabs,
     taskViewMode,
     workspaceIdentity,
     workspacePath,
+    workspaceTabs,
   ]);
 
   useEffect(() => {

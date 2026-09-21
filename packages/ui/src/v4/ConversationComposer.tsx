@@ -184,9 +184,10 @@ const PROMPT_ENHANCE_SYSTEM = [
   "Never answer the prompt and never invent new requirements.",
   "Output ONLY the rewritten prompt text - no explanations, no code fences, no surrounding quotes.",
 ].join(" ");
-// 自身 deadline 先于 RPC deadline 触发：超时走取消路径回到输入框，
-// 不能让协议默认超时先命中（会被 onRequestTimeout 误判 stale 杀进程）。
-const PROMPT_ENHANCE_ABORT_MS = 120_000;
+/**
+ * 提示词增强的 RPC deadline。取值需高于 thinking 模型的正常耗时：协议 client 超时会被
+ * 上层视为「连接不可信」并可能回收 agent 进程，因此这里给足余量（见 zcodeAgentService 注释）。
+ */
 const PROMPT_ENHANCE_RPC_TIMEOUT_MS = 300_000;
 
 export interface ConversationComposerSendOptions {
@@ -669,12 +670,21 @@ function ConversationComposerImpl({
         ],
         querySource: "composer_prompt_enhance",
         maxOutputTokens: 4096,
-        signal: AbortSignal.timeout(PROMPT_ENHANCE_ABORT_MS),
+        // 不能传 signal：该参数在服务层是「进程内真实 AbortSignal」，用于本地取消 RPC；
+        // 渲染层经 Proxy 调用时它会被序列化成普通对象，宿主侧调用
+        // params.signal.addEventListener 直接抛 TypeError（曾导致点击即报错）。
+        // 跨进程序约只走 requestTimeoutMs（见下），语义是「自身 deadline + 取消缓冲」。
         requestTimeoutMs: PROMPT_ENHANCE_RPC_TIMEOUT_MS,
       });
       const enhanced = normalizePromptEnhanceOutput(result.text);
       if (!enhanced) {
         throw new Error("prompt enhance returned empty text");
+      }
+      // 等待期间用户可能继续编辑；此时不覆盖，避免抹掉刚输入的内容。
+      if (textRef.current.trim() !== draftText) {
+        logger.info("[prompt-enhance] 草稿在等待期间已变更，跳过覆盖");
+        toast(intl.formatMessage({ id: "composer.promptEnhance.staleDraft" }));
+        return;
       }
       inputApiRef.current?.setText(enhanced);
       updateText(enhanced);

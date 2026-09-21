@@ -150,6 +150,7 @@ const enUS: Record<string, string> = {
   "chat.composer.addWorkflow": "Workflow",
   "chat.composer.attachment": "Attachments",
   "composer.promptEnhance.tooltip": "Enhance prompt",
+  "composer.promptEnhance.staleDraft": "Draft changed while enhancing; left your text untouched",
   "composer.promptEnhance.failed": "Prompt enhancement failed. Please try again.",
   "chat.permission.feedback.ariaLabel": "Optional feedback for the model when denying",
   "chat.permission.feedback.placeholder": "Tell the model what to do instead...",

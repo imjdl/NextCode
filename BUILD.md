@@ -30,8 +30,45 @@
 | 2026-09-21（重建） | 3.14.0 | `ZCode-3.14.0-win-x64.exe` | 关闭官方渠道自动更新/强制升级后重打；首版安装后会被官方后端强制升级覆盖，勿再使用首版产物 |
 | 2026-09-21 | 3.15.0 | `ZCode-3.15.0-win-x64.exe` | 侧栏激活项自动揭示 + 输入框提示词增强 + 放宽内置安全声明（见下） |
 | 2026-09-21 | 3.16.0 | `ZCode-3.16.0-win-x64.exe` | 去远程控制 + 遥测编译期硬关断（见下）；建议用此版替换 3.15.0 |
+| 2026-09-21 | 3.16.1 | `ZCode-3.16.1-win-x64.exe` | 修复侧栏项目自动揭示在 Windows 上失效 + 提示词增强点击报错；**新增：激活项目自动置顶**（见下） |
 
 ## 定制改动记录
+
+### 2026-09-21 修复：侧栏项目自动揭示失效 与 提示词增强点击报错（3.16.1）
+
+**Bug 1：激活项目后列表不滚动（Windows 必现）**
+
+现象：3.15.0/3.16.0 安装后，激活项目时列表既不滚动也不报错。
+
+根因：`WorkspaceSidebar` 用 `querySelector('[data-testid="workspace-item-<路径>"]')` 找卡片，而 Windows 路径含反斜杠（`E:\Projects\ZCode`）。反斜杠在 CSS 字符串里是转义前缀，`\P` → `P`、`\Z` → `Z`，选择器实际变成 `workspace-item-E:ProjectsZCode` —— **CSS 合法转义，不抛错，只是匹配不到任何元素**，揭示逻辑因此静默 return。macOS/Linux 路径只有 `/`，所以只在 Windows 出现。
+
+修复（`packages/ui/src/WorkspaceSidebar.tsx`）：
+
+- 新增 `findWorkspaceCardElement`：选择器只用安全前缀 `[data-testid^="workspace-item-"]`，再用 `getAttribute` 精确比较完整值；不再把任何值拼进选择器（函数文档里写明了这个陷阱）。
+- 揭示时机收敛为「切换项目时」：`workspaceKey` 变化 → 把该项目卡片头部对齐视口顶部（容差 8px，已在顶部则不滚动）；同一项目内切任务不动卡片，避免把刚点击的任务行推出视口（行级滚动由 `TaskList` 负责）。
+
+**Bug 2：点击提示词增强直接报错**
+
+日志证据（`~/.zcode/v2/logs/<date>.log`）：
+
+```
+[host] [rpc:call] zcode-agent.generateWorkspaceText FAIL (1.4ms)
+{"name":"TypeError","message":"params.signal?.addEventListener is not a function"}
+```
+
+根因：`ZCodeAgentGenerateWorkspaceTextParams.signal` 在服务层是**进程内真实 AbortSignal**（`zcodeAgentService` 用它做本地取消，且不会把它发到线上）。渲染层经 Proxy 调用时该对象被序列化成普通对象，宿主侧调 `params.signal.addEventListener` 立即抛错。
+
+修复（`packages/ui/src/v4/ConversationComposer.tsx`）：不再传 `signal`，跨进程序约只走 `requestTimeoutMs`（300s，需高于 thinking 模型正常耗时——协议 client 超时会被上层视为「连接不可信」并可能回收 agent 进程）。另加"等待期间用户继续编辑则不覆盖草稿"的保护（新增 `composer.promptEnhance.staleDraft` 文案）。
+
+**排查方法沉淀**：桌面端日志在 `~/.zcode/v2/logs/<date>.log`（`getAppConfigDir()/logs`），renderer 与 host 的 warn/error 都会落盘，且 host 侧 RPC 失败带方法名与堆栈——定位此类"点击无反应/报错"优先看这里。
+
+**需求澄清与追加实现：激活项目自动置顶**
+
+首轮实现只做了"滚动到可见"，但用户要的是**正在使用的项目自己排到列表最前面**（不必翻找）。项目顺序原本是手动拖拽顺序（随 tab 顺序持久化），所以激活后不会自动前移。追加实现（`WorkspaceSidebar.tsx`）：
+
+- 激活项目时把该项目前移到项目区首位：复用 `reorderWorkspaceTabs(fromIndex, firstProjectIndex)`，只动激活项，其它项目相对顺序不变；会话区（`workspacePurpose === "conversation"`）不参与。
+- 拖拽进行中不重排；置顶 → 展开 → 滚动三件事按序在同一个 effect 内完成（共用一个"已处理"标记），否则会出现"在旧布局位置滚动完又被重排打乱"。
+- `lib/workspacePurpose.ts` 的 `getWorkspacePurpose` 改为导出，供侧栏判定项目/会话。
 
 ### 2026-09-21 去远程控制 与 遥测硬关断（3.16.0）
 
