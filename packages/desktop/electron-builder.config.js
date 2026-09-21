@@ -573,6 +573,14 @@ export default {
       from: "resources/web-remote-web",
       to: "web-remote-web",
     },
+    {
+      // 远端 workspace 运行时资源（server-bundle/node/node-pty/glm/tools）。
+      // 定制版自增版本号后官方 CDN 上没有对应 manifest，必须随包分发才能连远程：
+      // 打包态 desktopRuntimeEnv 把 resourcesPath/remote-assets 当作 mock CDN 根（本地优先）。
+      // 平台范围由 ZCODE_BUNDLED_REMOTE_PLATFORMS 控制（默认 linux-x64）。
+      from: "resources/remote-assets",
+      to: "remote-assets",
+    },
     ...(targetPlatform.os === "darwin"
       ? [
           {

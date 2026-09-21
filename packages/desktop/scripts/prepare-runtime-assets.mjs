@@ -27,6 +27,8 @@ const shouldPrepareMacosWindowBounds = target.os === "darwin";
 // 远端跨平台原生二进制仍由上面的 prepare:remote-assets 提供。
 // native-search 归档随仓库分发，准备步骤只做本地解包校验，不需要任何下载源配置。
 const localRuntimeScripts = [
+  // 远端运行时资源随包分发（本地优先，避免依赖官方 CDN 的当前版本）。
+  "prepare:remote-assets-bundle",
   "prepare:agent-bundle",
   // Web 远控托管的 Web 产物：随包分发，缺失时面板会明确报错。
   "prepare:web-remote-web",

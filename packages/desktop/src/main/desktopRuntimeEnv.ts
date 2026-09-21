@@ -201,6 +201,12 @@ export function loadHostProcessEnvFromLocalFiles(): Record<string, string> {
 }
 
 function resolveDevelopmentMockCdnDir(): string {
+  // 打包态用随包资源：remote-assets 由 scripts/prepare-remote-assets-bundle.mjs 从仓库
+  // mock-cdn 裁剪出指定平台（默认 linux-x64），electron-builder 放进 resources。
+  // 定制版自增版本后官方 CDN 上必然没有对应 manifest，必须靠这份本地资源才能连远程。
+  if (isElectronAppPackaged()) {
+    return join(process.resourcesPath, "remote-assets");
+  }
   return join(import.meta.dirname, "../../mock-cdn");
 }
 

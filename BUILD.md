@@ -35,6 +35,21 @@
 
 ## 定制改动记录
 
+### 2026-09-21 远程 workspace 用随包资源（不再依赖官方 CDN）
+
+**问题**：连接 SSH/WSL 远程报 `manifest not found for linux-x64: manifest-linux-x64.json`。远端部署默认从官方 CDN 取 `releases/<版本>/manifest-<platform>-<arch>.json`；定制版自增版本号（3.16.2）后官方 CDN 上不存在该版本，必然 404。仓库里其实有本地资源（`packages/desktop/mock-cdn/releases/<version>/`，由 `prepare:remote-assets` 生成），但**打包态不带**，只能走 CDN。
+
+**改动**（规则与验收见 `specs/bundled-remote-runtime-assets.md`）：
+
+- `scripts/prepare-remote-assets-bundle.mjs`：把 mock-cdn 里当前版本的指定平台资源裁进 `resources/remote-assets`（默认 `linux-x64`，可用 `ZCODE_BUNDLED_REMOTE_PLATFORMS` 扩展）。实测 157.1MB（其中 Node 运行时 116MB 不可省）。
+- `desktopRuntimeEnv.resolveDevelopmentMockCdnDir()`：打包态返回 `process.resourcesPath/remote-assets`，开发态仍用仓库 `mock-cdn`。
+- electron-builder `extraResources` 随包分发；脚本已挂入 `prepare:runtime-assets`（在 `prepare:remote-assets` 之后，保证资源是当前版本）。
+- 已加入 `.gitignore`（构建产物，否则 oxlint 会扫到）。
+
+**效果**：本地资源齐全时，远端部署**完全不走网络**（既有 `getReleaseDir` 的本地优先语义）；未打包的平台（如 darwin-arm64）仍按既有语义回退 CDN，并在日志给出 `mock-cdn incomplete` 警告。
+
+**注意**：**改版本号后必须重跑 prepare**（`prepare:remote-assets` + `prepare:remote-assets-bundle`），否则随包资源目录名与 `ZCODE_VERSION` 不一致 → 又回到 CDN。构建流水线已包含该步骤，但用 `--skip-prepare` 时不会执行。
+
 ### 2026-09-21 修复：手机图标状态色 与 手机端抽屉背景透明
 
 **问题 1：开启服务后手机图标不变色**（`packages/ui/src/WorkspaceSidebarFooter.tsx`）
