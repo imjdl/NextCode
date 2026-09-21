@@ -313,13 +313,26 @@ export function resolveRemoteAssetDirs(
   const remoteCdnBaseUrls = resolveRemoteCdnBaseUrls(options, localEnv);
   const remoteCdnBaseUrl = remoteCdnBaseUrls[0];
 
-  // remote 资源之前和 desktop 本地 provider 资源共用安装包内路径，
-  // 结果打包后会把整套 Linux 远程运行时一起塞进 .app，和“remote 资源走 CDN / mock-cdn”的职责边界冲突。
-  // 这里改成显式分流：开发态只读仓库里的 mock-cdn；生产态统一走 CDN + 本地缓存目录，
-  // 不再暴露任何安装包内 remote-assets 路径，避免 remote 资源再次被塞回安装包。
-  // 功能开关：开发态默认继续走 mock-cdn，只有显式打开开关才切到公网 CDN。
-  // 这样能兼容离线开发场景，同时允许在开发环境提前验证真实 CDN 下载链路。
-  if (isElectronAppPackaged() || shouldUseRemoteCdnInDevelopment(localEnv)) {
+  // remote 资源历史上和 desktop 本地 provider 资源共用安装包内路径，上游据此改成
+  // "生产态只走 CDN + 缓存、不传 mockCdnDir"，避免把整套 Linux 远程运行时塞进安装包。
+  //
+  // 定制版必须反过来：官方 CDN 只有官方发布过的版本，我们自增版本号后
+  // `releases/<version>/manifest-<platform>.json` 在 CDN 上必然 404（实测
+  // "manifest not found for linux-x64"），远程连接直接失败。因此打包态改为
+  // "随包资源优先"：remote-assets 随安装包分发（见 scripts/prepare-remote-assets-bundle.mjs），
+  // 本地组件齐全时部署完全不下载（deploy 的本地优先语义），不齐才回退 CDN/缓存。
+  if (isElectronAppPackaged()) {
+    const bundledMockCdnDir = resolveAvailableDevelopmentMockCdnDir();
+    return {
+      ...(bundledMockCdnDir ? { mockCdnDir: bundledMockCdnDir } : {}),
+      remoteCdnBaseUrl,
+      remoteCdnBaseUrls,
+      remoteCacheDir: resolveRemoteAssetCacheDir(localEnv),
+    };
+  }
+
+  // 开发态默认走仓库 mock-cdn；只有显式打开开关时才切到公网 CDN，便于提前验证真实下载链路。
+  if (shouldUseRemoteCdnInDevelopment(localEnv)) {
     return {
       remoteCdnBaseUrl,
       remoteCdnBaseUrls,

@@ -18,9 +18,19 @@
 ## 行为规则
 
 1. **打包态资源根**：`process.resourcesPath/remote-assets` 作为 mock CDN 根（布局与仓库 `mock-cdn` 一致：`releases/<version>/manifest-<platform>-<arch>.json` + 各组件目录）。开发态继续用仓库内 `packages/desktop/mock-cdn`。
-2. **随包平台范围**：默认只打包 `linux-x64`（SSH/WSL 常见目标；每平台约 158MB 未压缩，含 116MB Node 运行时）。可通过环境变量 `ZCODE_BUNDLED_REMOTE_PLATFORMS`（逗号分隔，如 `linux-x64,linux-arm64`）扩展。
-3. **完整性判定沿用既有逻辑**：组件不齐时仍回退 CDN/cache（例如连的是未打包的平台）——这是既有语义，不新增兜底分支。用户侧表现为该平台仍需要 CDN（而定制版 CDN 上大概率没有，因此文档要写明"只支持随包平台"）。
-4. **不改协议、不改远端部署算法**；只改变"本地资源从哪来"。
+2. **必须在 `resolveRemoteAssetDirs` 的打包分支里传入**（这是首版失败的真实原因）：
+   该函数原本在打包态**提前返回**「只给 CDN + 缓存、不传 `mockCdnDir`」（上游注释：避免 remote 资源被塞回安装包）。
+   只改路径解析函数（`resolveDevelopmentMockCdnDir`）在打包态是**死代码**——文件随包了但从未被查询，日志仍显示 `mockCdnDir: <missing>`。
+   正确改法：把打包分支与"开发态强制走 CDN"分支拆开，打包分支带上随包 `mockCdnDir`（有则传），CDN 基址保留作为不完整时的回退。
+3. **随包平台范围**：默认只打包 `linux-x64`（SSH/WSL 常见目标；每平台约 158MB 未压缩，含 116MB Node 运行时）。可通过环境变量 `ZCODE_BUNDLED_REMOTE_PLATFORMS`（逗号分隔，如 `linux-x64,linux-arm64`）扩展。
+4. **完整性判定沿用既有逻辑**：组件不齐时仍回退 CDN/cache（例如连的是未打包的平台）——这是既有语义，不新增兜底分支。用户侧表现为该平台仍需要 CDN（而定制版 CDN 上大概率没有，因此文档要写明"只支持随包平台"）。
+5. **不改协议、不改远端部署算法**；只改变"本地资源从哪来"。
+
+## 传递链（排查用）
+
+`main` 的 `resolveRemoteAssetDirs()` → `ConnectRemoteWorkspace` 消息的 `remoteAssets` 字段
+→ host `msg.remoteAssets` → `windowRemoteConnectionRegistry.connect({ target, remoteAssets })`
+→ deploy 的 `ConnectOptions`（含 `mockCdnDir`）→ `deploy.ts` 打印 `mockCdnDir:` 并据此选择本地/远端。
 
 ## 状态所有者与边界
 

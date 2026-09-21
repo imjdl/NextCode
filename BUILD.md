@@ -64,6 +64,10 @@
 
 **注意**：**改版本号后必须重跑 prepare**（`prepare:remote-assets` + `prepare:remote-assets-bundle`），否则随包资源目录名与 `ZCODE_VERSION` 不一致 → 又回到 CDN。构建流水线已包含该步骤，但用 `--skip-prepare` 时不会执行。
 
+**首版失败复盘（重要）**：第一版只改了路径解析函数 `resolveDevelopmentMockCdnDir()`，实测无效——日志仍是 `mockCdnDir: <missing>`。真实原因是 `resolveRemoteAssetDirs()` 在打包态**提前返回**「只给 CDN + 缓存、不传 `mockCdnDir`」（上游注释：避免 remote 资源被塞回安装包），所以被改的解析函数在打包态**从未被调用**（死代码）。第二版把打包分支与"开发态强制走 CDN"分支拆开，打包分支带上随包 `mockCdnDir`。
+
+教训：这类"改了解析却没用"的问题，**先确认调用链上没有提前返回**，再改实现；同时用"产物结构 + 调用链"双重验证，别只看文件是否随包。
+
 ### 2026-09-21 修复：手机图标状态色 与 手机端抽屉背景透明
 
 **问题 1：开启服务后手机图标不变色**（`packages/ui/src/WorkspaceSidebarFooter.tsx`）
