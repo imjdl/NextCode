@@ -34,7 +34,20 @@
 
 ## 定制改动记录
 
-### 2026-09-21 修复：侧栏项目自动揭示失效 与 提示词增强点击报错（3.16.1）
+### 2026-09-21 Web/手机端布局适配（3.16.1 内的追加改动）
+
+**背景**：局域网 Web 访问实测发现手机打开后是桌面双栏压缩版——侧栏占 `max-w-[50%]`，聊天列 `min-w-[320px]`，相加超出 393px 视口且外层 `overflow-hidden`，输入框被裁切且无法横向滚动；同时 Web 端没有侧栏显隐入口（按钮只在 mac/Windows 桌面分支渲染），手机上连"收起侧栏"都做不到。原移动端形态随手机远控功能一起被删（`ZCodeAgentPresentationSurface` 只剩 `"desktop"`）。
+
+**改动**（行为规则与验收见 `specs/web-mobile-layout.md`）：
+
+- 新增 `hooks/useNarrowViewport.ts`：matchMedia 订阅 ≤768px 窄视口（只在跨断点触发一次重渲染，不用 resize 监听）。
+- `hooks/useAppPanels.ts`：窄视口默认收起侧栏，跨断点自动切换（200ms 内的桌面行为完全不变）。
+- `app-shell/WorkspaceShellLayout.tsx`：窄视口下侧栏改为覆盖抽屉（`absolute z-40`、宽度 `min(85vw, 320px)`，不再受 `max-w-[50%]` 限制），加遮罩点按关闭，点选任务后自动收起，拖拽把手在窄视口隐藏。
+- `DesktopTopOverlay.tsx`：补齐非桌面（Web）分支的侧栏显隐按钮——原先只有 mac/Windows 桌面有，这是"收起后无法再展开"的根因。
+
+**实测（393×852 headless，真实服务端）**：初始 `aside=0 / content=393 / composer=333 / overflow=0`；打开抽屉 `aside=320 / content 仍 393（覆盖而非挤压）/ 遮罩出现`；点遮罩回到收起态；1280px 宽视口回归 `aside=264 + 拖拽把手存在 + 无遮罩`；无页面错误。
+
+**注意**：该改动在共享 UI 里，Web 产物重建即可生效（服务端托管静态目录，无需重启）；桌面安装包需重新打包才会包含。
 
 **Bug 1：激活项目后列表不滚动（Windows 必现）**
 

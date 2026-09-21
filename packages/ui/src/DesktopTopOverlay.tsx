@@ -160,6 +160,20 @@ export function DesktopTopOverlay({
             </DesktopTopOverlayActionButton>
           )}
 
+          {/* Web/浏览器端没有原生标题栏分支，侧栏显隐按钮此前只在 mac/Windows 桌面渲染，
+              导致浏览器（尤其手机）收起侧栏后没有任何再展开入口。这里补齐非桌面分支。 */}
+          {!isDesktop ? (
+            <DesktopTopOverlayActionButton
+              title={toggleSidebarTitle}
+              shortcut={toggleSidebarShortcutLabel}
+              ariaLabel={toggleSidebarTitle}
+              testId="web-top-sidebar-toggle"
+              onClick={onToggleSidebar}
+            >
+              <SidebarToggleIcon className="size-4" />
+            </DesktopTopOverlayActionButton>
+          ) : null}
+
           {/* 远程控制移动端左上角空间有限，任务前进/后退在这里会与主操作拥挤重叠。*/}
           {hideTaskNavigationButtons ? null : (
             <>

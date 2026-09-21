@@ -35,6 +35,8 @@ import { DesktopTopOverlay } from "@/DesktopTopOverlay.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { WorkspacePluginPreview } from "@/WorkspacePluginPreview.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
+import { useNarrowViewport } from "@/hooks/useNarrowViewport.js";
+import { PanelLeftOpen } from "lucide-react";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 
@@ -403,6 +405,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     );
   }, [openWorkspaceKeys]);
   const isSidebarPanelVisible = isSidebarVisible;
+  // 窄视口（手机浏览器/窄窗口）：侧栏以覆盖抽屉呈现，并补一个可见的开启入口。
+  const isNarrowViewport = useNarrowViewport();
   const {
     panelRef: terminalPanelRef,
     panelElementRef: terminalPanelElementRef,
@@ -758,15 +762,19 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   const workspaceShellSplitStyle = useMemo(
     () =>
       ({
-        "--workspace-sidebar-panel-width": `${
-          isSidebarPanelVisible ? workspaceSidebarPanelWidthPx : collapsedSidebarWidthPx
-        }px`,
+        // 窄视口把侧栏宽度改为视口百分比（覆盖抽屉），不再读取持久化的桌面宽度；
+        // 用 CSS 表达式而非测量值，避免窗口 resize 期间触发 React 重渲染。
+        "--workspace-sidebar-panel-width":
+          isNarrowViewport && isSidebarPanelVisible
+            ? "min(85vw, 320px)"
+            : `${isSidebarPanelVisible ? workspaceSidebarPanelWidthPx : collapsedSidebarWidthPx}px`,
         "--workspace-sidebar-width": `${workspaceSidebarPanelWidthPx}px`,
         "--workspace-panel-radius": `${workspacePanelRadiusPx}px`,
         "--workspace-resize-handle-inset": `${workspaceResizeHandleInsetPx}px`,
       }) as CSSProperties,
     [
       collapsedSidebarWidthPx,
+      isNarrowViewport,
       isSidebarPanelVisible,
       workspacePanelRadiusPx,
       workspaceResizeHandleInsetPx,
@@ -1506,6 +1514,31 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     () => [workspaceKey, isSidebarVisible],
     [workspaceKey, isSidebarVisible],
   );
+  // 窄视口抽屉：点选任务后必须收起，否则抽屉会一直盖住刚打开的会话。
+  const closeMobileSidebarDrawer = useCallback(() => {
+    if (isNarrowViewport && isSidebarVisible) {
+      handleToggleSidebar();
+    }
+  }, [handleToggleSidebar, isNarrowViewport, isSidebarVisible]);
+  const handleSelectTaskFromMobileDrawer = useCallback(
+    (
+      targetWorkspacePath: string,
+      taskId: string,
+      targetWorkspaceIdentity?: string,
+      targetRemoteSessionId?: string,
+      expectedUnreadAt?: number,
+    ) => {
+      handleSelectTaskInChat(
+        targetWorkspacePath,
+        taskId,
+        targetWorkspaceIdentity,
+        targetRemoteSessionId,
+        expectedUnreadAt,
+      );
+      closeMobileSidebarDrawer();
+    },
+    [closeMobileSidebarDrawer, handleSelectTaskInChat],
+  );
 
   return (
     <DesktopWindowFrame
@@ -1533,10 +1566,13 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           data-workspace-sidebar-panel="true"
           id="sidebar"
           className={cn(
-            "w-[var(--workspace-sidebar-panel-width)] max-w-[50%] flex-none overflow-hidden duration-200 ease-out transition-[width,opacity] data-[workspace-sidebar-resizing=true]:transition-opacity",
+            "w-[var(--workspace-sidebar-panel-width)] flex-none overflow-hidden duration-200 ease-out transition-[width,opacity] data-[workspace-sidebar-resizing=true]:transition-opacity",
             // 拖动侧栏宽度时如果继续过渡 width，会让指针移动和实际宽度之间产生滞后。
             // 拖拽 active 通过 DOM 标记切 transition，避免 pointerdown/up 为了切 class 重渲染整棵 workspace。
             isSidebarPanelVisible ? "opacity-100" : "pointer-events-none opacity-0",
+            // 窄视口：侧栏改为覆盖抽屉，脱离 flex 流并压在内容之上，宽度由 CSS 变量给到 min(85vw,320px)，
+            // 因此不再受 max-w-[50%] 限制、也不会挤压聊天列（聊天列 min-w-[320px] 曾导致内容被裁切）。
+            isNarrowViewport ? "absolute inset-y-0 left-0 z-40 shadow-xl" : "relative max-w-[50%]",
           )}
         >
           <aside
@@ -1561,7 +1597,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     workspacePath={workspaceAbsPath}
                     workspaceRemoteSessionId={workspaceRemoteSessionId}
                     activePreviewPath={activePreviewPath}
-                    onSelectTask={handleSelectTaskInChat}
+                    onSelectTask={
+                      isNarrowViewport ? handleSelectTaskFromMobileDrawer : handleSelectTaskInChat
+                    }
                     onStartDraftInWorkspace={handleCreateProjectDraft}
                     onOpenCodeViewer={handleOpenCodeViewer}
                     onOpenBrowserUrl={handleOpenBrowserUrl}
@@ -1608,7 +1646,19 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           </aside>
         </div>
 
-        {isSidebarVisible ? (
+        {/* 窄视口：抽屉打开时用遮罩承接"点空白关闭"，并阻止误触下层内容。
+            开启入口由顶部浮层提供（DesktopTopOverlay 的非桌面分支），不再另放悬浮按钮，
+            避免与浮层争 z-index 导致点不到。 */}
+        {isNarrowViewport && isSidebarVisible ? (
+          <div
+            data-testid="mobile-sidebar-scrim"
+            aria-hidden="true"
+            className="absolute inset-0 z-30 bg-black/40"
+            onClick={handleToggleSidebar}
+          />
+        ) : null}
+
+        {isSidebarVisible && !isNarrowViewport ? (
           <div
             role="separator"
             tabIndex={0}
