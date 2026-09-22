@@ -76,7 +76,10 @@ const result = await page.evaluate(
     };
     const gradient = ctx.createLinearGradient(boxX, boxY, boxX + boxW, boxY + boxH);
     gradient.addColorStop(0, sample(Math.max(0, boxX - 30), Math.max(0, boxY - 30)));
-    gradient.addColorStop(1, sample(Math.min(size - 1, boxX + boxW + 30), Math.min(size - 1, boxY + boxH + 30)));
+    gradient.addColorStop(
+      1,
+      sample(Math.min(size - 1, boxX + boxW + 30), Math.min(size - 1, boxY + boxH + 30)),
+    );
     ctx.fillStyle = gradient;
     ctx.fillRect(boxX, boxY, boxW, boxH);
 
@@ -130,7 +133,10 @@ entry.writeUInt16LE(1, 4);
 entry.writeUInt16LE(32, 6);
 entry.writeUInt32LE(icon256.length, 8);
 entry.writeUInt32LE(22, 12);
-writeFileSync(resolve(repoRoot, "packages/desktop/build/icon_installer.ico"), Buffer.concat([header, entry, icon256]));
+writeFileSync(
+  resolve(repoRoot, "packages/desktop/build/icon_installer.ico"),
+  Buffer.concat([header, entry, icon256]),
+);
 console.log("已重绘 packages/desktop/build/icon_installer.ico（256 单尺寸）");
 
 await browser.close();

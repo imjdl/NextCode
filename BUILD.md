@@ -10,13 +10,13 @@
 
 ## 产品身份（改名后）
 
-| 项 | 值 | 唯一来源 |
-| --- | --- | --- |
-| 产品名 | `NextCode`（Preview 身份为 `NextCode Preview`） | `packages/desktop/scripts/desktop-product-identity.mjs` |
-| appId / AUMID | `dev.nextcode.app`（Preview 为 `dev.nextcode.app.preview`） | 同上 |
-| Windows 可执行名 / 安装包名 | `NextCode.exe` / `NextCode-{version}-win-x64.exe` | 由 `productName` 派生 |
-| Linux 可执行名 / 包名 | `nextcode` / `nextcode` | 同上 |
-| 数据目录 | **仍为 `~/.zcode`**（`ZCODE_HOME` 可覆盖） | `packages/services/src/node.ts` |
+| 项                          | 值                                                          | 唯一来源                                                |
+| --------------------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
+| 产品名                      | `NextCode`（Preview 身份为 `NextCode Preview`）             | `packages/desktop/scripts/desktop-product-identity.mjs` |
+| appId / AUMID               | `dev.nextcode.app`（Preview 为 `dev.nextcode.app.preview`） | 同上                                                    |
+| Windows 可执行名 / 安装包名 | `NextCode.exe` / `NextCode-{version}-win-x64.exe`           | 由 `productName` 派生                                   |
+| Linux 可执行名 / 包名       | `nextcode` / `nextcode`                                     | 同上                                                    |
+| 数据目录                    | **仍为 `~/.zcode`**（`ZCODE_HOME` 可覆盖）                  | `packages/services/src/node.ts`                         |
 
 **刻意未改（避免破坏契约，属后续可选项）**：
 
@@ -34,15 +34,16 @@
 命名与字形都从 ZCode 换成 NextCode：**粗斜体 Z → 同风格粗斜体 N**（沿用原型 Z 的笔重比例、
 斜度与圆角交界过渡），橙色/配色与圆角方底保持不变。
 
-| 类型 | 文件 | 说明 |
-| --- | --- | --- |
-| 徽标（矢量） | `packages/ui/src/assets/app-badge.svg` | 18×18 圆角方底 + 白 N，用于窗口左上角、折叠侧栏、闪屏 |
-| 字形路径（矢量） | `packages/ui/src/assets/brand-mark-paths.ts` | 由生成器产出的路径，`NextCodeLogo` 组件与徽标同源 |
-| 水印（矢量） | `packages/ui/src/assets/N.svg` | 草稿空态/欢迎页的暗色水印 |
-| 应用图标 | `packages/desktop/build/icon.png`（1024，留白版）、`icon_windows.png`、`icons/*`（满幅版） | mac 留白 9.4%+圆角 21%，Windows 满幅+圆角 12.6%，与原图标实测规格一致 |
-| Windows 图标/托盘/favicon | `packages/desktop/build/icon.ico`、`packages/web/public/favicon.ico` | PNG-in-ICO，7 个尺寸（16…256） |
-| 安装器图标 | `packages/desktop/build/icon_installer.png` / `.ico` | NSIS 安装/卸载/标题图标；保留原 3D 盒子，只把盒面字形换成 N |
-| **未替换（mac 专用）** | `build/icon.icns`、`build/icon_installer.icns`、`build/dmg_background.png` | icns 需 Apple 工具链；dmg 背景图含 ZCODE 字样，若要出 mac 包需一并重做 |
+| 类型                      | 文件                                                                                                      | 说明                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 徽标（矢量）              | `packages/ui/src/assets/app-badge.svg`                                                                    | 18×18 圆角方底 + 白 N，用于窗口左上角、折叠侧栏、闪屏                  |
+| 字形路径（矢量）          | `packages/ui/src/assets/brand-mark-paths.ts`                                                              | 由生成器产出的路径，`NextCodeLogo` 组件与徽标同源                      |
+| 水印（矢量）              | `packages/ui/src/assets/N.svg`                                                                            | 草稿空态/欢迎页的暗色水印                                              |
+| 应用图标                  | `packages/desktop/build/icon.png`（1024，留白版）、`icon_windows.png`、`icons/*`（满幅版）                | mac 留白 9.4%+圆角 21%，Windows 满幅+圆角 12.6%，与原图标实测规格一致  |
+| README 展示图标           | `public/logo/icons/*`                                                                                     | 只被两个 README 引用，与上面的 Windows 满幅版同源生成                  |
+| Windows 图标/托盘/favicon | `packages/desktop/build/icon.ico`、`packages/web/public/favicon.ico`                                      | PNG-in-ICO，7 个尺寸（16…256）                                         |
+| 安装器图标                | `packages/desktop/build/icon_installer.png` / `.ico`                                                      | NSIS 安装/卸载/标题图标；保留原 3D 盒子，只把盒面字形换成 N            |
+| **未替换（mac 专用）**    | `build/icon.icns`、`build/icon_installer.icns`、`build/dmg_background.png`、`public/logo/icons/icon.icns` | icns 需 Apple 工具链；dmg 背景图含 ZCODE 字样，若要出 mac 包需一并重做 |
 
 **重新生成**（改字形参数后必须重跑，避免各处图形漂移）：
 
@@ -61,12 +62,12 @@ node scripts/patch-installer-icon.mjs            # 安装器图标（从 git 取
 
 它流向这些地方，改一处全部生效（均为构建期读取，改完后需重新构建）：
 
-| 流向 | 说明 |
-| --- | --- |
-| 安装包文件名 | `packages/desktop/dist/NextCode-{version}-win-x64.exe` |
-| 应用内版本 | 渲染层 `__ZCODE_VERSION__`（`packages/desktop/scripts/build-metadata.mjs` 读根版本注入） |
-| NSIS 元数据 | 安装器“程序和功能”里的 DisplayVersion |
-| 自动更新清单 | `dist/latest.yml`（版本比对依据） |
+| 流向         | 说明                                                                                     |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| 安装包文件名 | `packages/desktop/dist/NextCode-{version}-win-x64.exe`                                   |
+| 应用内版本   | 渲染层 `__ZCODE_VERSION__`（`packages/desktop/scripts/build-metadata.mjs` 读根版本注入） |
+| NSIS 元数据  | 安装器“程序和功能”里的 DisplayVersion                                                    |
+| 自动更新清单 | `dist/latest.yml`（版本比对依据）                                                        |
 
 注意事项：
 
@@ -77,16 +78,16 @@ node scripts/patch-installer-icon.mjs            # 安装器图标（从 git 取
 
 ### 定制版本记录
 
-| 日期 | 版本 | 产物 | 说明 |
-| --- | --- | --- | --- |
-| 2026-09-21 | 3.14.0 | `ZCode-3.14.0-win-x64.exe`（149 MB） | 首个定制构建，改动见下 |
-| 2026-09-21（重建） | 3.14.0 | `ZCode-3.14.0-win-x64.exe` | 关闭官方渠道自动更新/强制升级后重打；首版安装后会被官方后端强制升级覆盖，勿再使用首版产物 |
-| 2026-09-21 | 3.15.0 | `ZCode-3.15.0-win-x64.exe` | 侧栏激活项自动揭示 + 输入框提示词增强 + 放宽内置安全声明（见下） |
-| 2026-09-21 | 3.16.0 | `ZCode-3.16.0-win-x64.exe` | 去远程控制 + 遥测编译期硬关断（见下）；建议用此版替换 3.15.0 |
-| 2026-09-21 | 3.16.1 | `ZCode-3.16.1-win-x64.exe` | 修复侧栏项目自动揭示失效 + 提示词增强点击报错；新增激活项目自动置顶、Web/手机端布局适配、桌面端 Web 远控面板（见下） |
-| 2026-09-21 | 3.16.2 | `ZCode-3.16.2-win-x64.exe` | 修复手机图标状态色（开启服务变绿）与手机端任务列表背景透明（见下） |
-| 2026-09-22 | 3.17.0 | `ZCode-3.17.0-win-x64.exe` | 死代码与 ARMS 依赖清理 + i18n 死键工具与清理（410 键/语言）+ Web 服务响应安全头（CSP）（见下）。首次打包后又重打一次：清掉 node_modules 陈旧残留（`@arms/*`），随包不再含 ARMS SDK，191.3 → 190.1 MiB |
-| 2026-09-22 | 3.18.0 | `NextCode-3.18.0-win-x64.exe`（待打包） | **改名为 NextCode** + 主题选项收敛为单一来源 + CSP 补 `'wasm-unsafe-eval'`（见下） |
+| 日期               | 版本   | 产物                                    | 说明                                                                                                                                                                                                  |
+| ------------------ | ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-21         | 3.14.0 | `ZCode-3.14.0-win-x64.exe`（149 MB）    | 首个定制构建，改动见下                                                                                                                                                                                |
+| 2026-09-21（重建） | 3.14.0 | `ZCode-3.14.0-win-x64.exe`              | 关闭官方渠道自动更新/强制升级后重打；首版安装后会被官方后端强制升级覆盖，勿再使用首版产物                                                                                                             |
+| 2026-09-21         | 3.15.0 | `ZCode-3.15.0-win-x64.exe`              | 侧栏激活项自动揭示 + 输入框提示词增强 + 放宽内置安全声明（见下）                                                                                                                                      |
+| 2026-09-21         | 3.16.0 | `ZCode-3.16.0-win-x64.exe`              | 去远程控制 + 遥测编译期硬关断（见下）；建议用此版替换 3.15.0                                                                                                                                          |
+| 2026-09-21         | 3.16.1 | `ZCode-3.16.1-win-x64.exe`              | 修复侧栏项目自动揭示失效 + 提示词增强点击报错；新增激活项目自动置顶、Web/手机端布局适配、桌面端 Web 远控面板（见下）                                                                                  |
+| 2026-09-21         | 3.16.2 | `ZCode-3.16.2-win-x64.exe`              | 修复手机图标状态色（开启服务变绿）与手机端任务列表背景透明（见下）                                                                                                                                    |
+| 2026-09-22         | 3.17.0 | `ZCode-3.17.0-win-x64.exe`              | 死代码与 ARMS 依赖清理 + i18n 死键工具与清理（410 键/语言）+ Web 服务响应安全头（CSP）（见下）。首次打包后又重打一次：清掉 node_modules 陈旧残留（`@arms/*`），随包不再含 ARMS SDK，191.3 → 190.1 MiB |
+| 2026-09-22         | 3.18.0 | `NextCode-3.18.0-win-x64.exe`（待打包） | **改名为 NextCode** + 主题选项收敛为单一来源 + CSP 补 `'wasm-unsafe-eval'`（见下）                                                                                                                    |
 
 ## 定制改动记录
 
@@ -215,9 +216,11 @@ Electron 数据目录随产品名变化，但设置/会话仍在 `~/.zcode`，�
 ### 2026-09-21 修复：手机图标状态色 与 手机端抽屉背景透明
 
 **问题 1：开启服务后手机图标不变色**（`packages/ui/src/WorkspaceSidebarFooter.tsx`）
+
 - 图标原本无状态：footer 不感知服务状态。现在 footer 镜像 main 的 `running`（面板回调 + 窗口 focus 时补查一次，覆盖服务自行退出），开启时 `Smartphone` 加 `text-success`（主题里 `--color-success` 为绿色），并加 `data-testid="web-remote-control-indicator"` / `data-running` 便于排查。
 
 **问题 2：手机端任务列表背景透明、与欢迎页叠字**（`app-shell/WorkspaceShellLayout.tsx`）
+
 - 根因：桌面布局里侧栏是**透明**的、靠下层 shell 底色透出；我把它改成覆盖抽屉时没给底色，于是列表文字与下层欢迎页/输入框叠在一起。
 - 首轮误用 `bg-background-alt`，实测计算值为 `oklab(… / 0.6)`——该 token 本身就是 `color-mix(..., transparent)`，**仍然半透明**；改用 `bg-background`（四个主题下均为不透明实色），实测计算值 `rgb(22, 22, 22)`，并补 `border-r border-border` 与阴影。
 - 验证：手机尺寸（393×852）headless 打开抽屉，`getComputedStyle` 取面板底色为不透明，`elementFromPoint` 命中抽屉内部（点击不再穿透到下层），截图确认无叠字。
@@ -410,12 +413,12 @@ pnpm run bundle -- --os win --arch x64 --dry-run                     # 只打印
 
 ### 产物（`packages/desktop/dist/`）
 
-| 文件 | 用途 |
-| --- | --- |
-| `ZCode-{version}-win-x64.exe` | NSIS 安装包（非 one-click、非 perMachine） |
-| `ZCode-{version}-win-x64.exe.blockmap` | 增量更新差分清单 |
-| `latest.yml` | 自动更新版本元数据 |
-| `win-unpacked/` | 免安装目录（`win-unpacked/ZCode.exe` 可直接运行验证） |
+| 文件                                   | 用途                                                  |
+| -------------------------------------- | ----------------------------------------------------- |
+| `ZCode-{version}-win-x64.exe`          | NSIS 安装包（非 one-click、非 perMachine）            |
+| `ZCode-{version}-win-x64.exe.blockmap` | 增量更新差分清单                                      |
+| `latest.yml`                           | 自动更新版本元数据                                    |
+| `win-unpacked/`                        | 免安装目录（`win-unpacked/ZCode.exe` 可直接运行验证） |
 
 ### 验证产物
 

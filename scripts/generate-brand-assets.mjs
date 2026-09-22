@@ -148,7 +148,10 @@ function appIconSvg({ inset, radiusRatio, size = 1024 }) {
   const radius = art * radiusRatio;
   const glyphScale = (art * 0.66) / METRICS.glyphHeight;
   const glyphWidth = METRICS.boxWidth * glyphScale;
-  const box = { x: inset + (art - glyphWidth) / 2, y: inset + (art - METRICS.glyphHeight * glyphScale) / 2 };
+  const box = {
+    x: inset + (art - glyphWidth) / 2,
+    y: inset + (art - METRICS.glyphHeight * glyphScale) / 2,
+  };
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect x="${inset}" y="${inset}" width="${art}" height="${art}" rx="${round(radius)}" fill="url(#nextcode-icon-bg)" />
 ${glyphGroup({ box, scale: glyphScale, fill: "white" })}
@@ -249,7 +252,8 @@ function assertNoLegacyGlyph() {
 
 /* ------------------------------------------------------------- 执行 */
 
-const chromiumPath = process.env["VERIFY_CHROME"] ??
+const chromiumPath =
+  process.env["VERIFY_CHROME"] ??
   "C:/Users/imell/AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe";
 
 async function renderSvg(page, svg, size, background = null) {
@@ -305,15 +309,43 @@ ${N_PATHS.map((d) => `  ${JSON.stringify(d)},`).join("\n")}
 
   if (!checkOnly) {
     writeFileSync(resolve(repoRoot, "packages/desktop/build/icon.png"), rendered["mac-1024"]);
-    writeFileSync(resolve(repoRoot, "packages/desktop/build/icon_windows.png"), rendered["win-1024"]);
-    writeFileSync(resolve(repoRoot, "packages/desktop/build/icons/1024x1024.png"), rendered["win-1024"]);
+    writeFileSync(
+      resolve(repoRoot, "packages/desktop/build/icon_windows.png"),
+      rendered["win-1024"],
+    );
+    writeFileSync(
+      resolve(repoRoot, "packages/desktop/build/icons/1024x1024.png"),
+      rendered["win-1024"],
+    );
     for (const size of sizes.filter((value) => value !== 1024)) {
-      writeFileSync(resolve(repoRoot, `packages/desktop/build/icons/${size}x${size}.png`), rendered[`win-${size}`]);
+      writeFileSync(
+        resolve(repoRoot, `packages/desktop/build/icons/${size}x${size}.png`),
+        rendered[`win-${size}`],
+      );
     }
-    const ico = buildIco(sizes.filter((size) => size <= 256).map((size) => ({ size, buffer: rendered[`win-${size}`] })));
+    const ico = buildIco(
+      sizes
+        .filter((size) => size <= 256)
+        .map((size) => ({ size, buffer: rendered[`win-${size}`] })),
+    );
     writeFileSync(resolve(repoRoot, "packages/desktop/build/icon.ico"), ico);
     writeFileSync(resolve(repoRoot, "packages/web/public/favicon.ico"), ico);
-    written.push("packages/desktop/build/icon.png", "packages/desktop/build/icon_windows.png", "packages/desktop/build/icons/*", "packages/desktop/build/icon.ico", "packages/web/public/favicon.ico");
+    // README 展示图标（public/logo 只被两个 README 引用，属文档资产，一并同源生成）
+    for (const size of sizes) {
+      writeFileSync(
+        resolve(repoRoot, `public/logo/icons/${size}x${size}.png`),
+        rendered[`win-${size}`],
+      );
+    }
+    writeFileSync(resolve(repoRoot, "public/logo/icons/icon.ico"), ico);
+    written.push(
+      "packages/desktop/build/icon.png",
+      "packages/desktop/build/icon_windows.png",
+      "packages/desktop/build/icons/*",
+      "packages/desktop/build/icon.ico",
+      "packages/web/public/favicon.ico",
+      "public/logo/icons/*",
+    );
   }
 
   // 3) 预览图（供人工核对风格）
