@@ -92,7 +92,7 @@ const ZCODE_DOWNLOAD_URL = "https://zcode.z.ai";
 
 const COPY: Record<ConversationShareLandingLocale, Copy> = {
   "zh-CN": {
-    brand: "ZCode 会话分享",
+    brand: "NextCode 会话分享",
     loading: "正在加载分享内容",
     loadingDescription: "请稍候，我们正在验证分享链接。",
     loginTitle: "登录后查看分享",
@@ -129,7 +129,7 @@ const COPY: Record<ConversationShareLandingLocale, Copy> = {
     retryOpen: "再次打开",
   },
   "en-US": {
-    brand: "ZCode Conversation Share",
+    brand: "NextCode Conversation Share",
     loading: "Loading shared conversation",
     loadingDescription: "Please wait while we verify this share link.",
     loginTitle: "Sign in to view this share",
@@ -408,7 +408,7 @@ export function ConversationShareLandingPage({
                   ref={brandRef}
                   data-share-brand="true"
                   className="shrink-0 text-ui-lg font-semibold text-foreground"
-                  aria-label="ZCode"
+                  aria-label="NextCode"
                 >
                   ZCode
                 </div>

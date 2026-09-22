@@ -1,16 +1,43 @@
 # BUILD — 定制版改动记录与打包手册
 
-本仓库是 ZCode 开源版的内部定制版。本文件记录三件事：**定制了什么**、**怎么打包出可执行文件**、**版本号怎么管理**。每次定制改动后在此追加记录，打包流程可直接复用。
+本仓库是 ZCode 开源版（上游基线 commit `872ad96`，版本 3.14.0）的内部定制版，**产品名 NextCode**。
+本文件记录三件事：**定制了什么**、**怎么打包出可执行文件**、**版本号怎么管理**。
+每次定制改动后在此追加记录，打包流程可直接复用。
+
+> 上游历史已在 2026-09-22 移除：本地 git 历史从「定制版 3.16.0」开始，不再包含 ZCode 的两条
+> 上游提交（含其作者信息）。原历史备份在仓库外 `E:\Projects\ZCode-history-backup-20260922.bundle`
+> （`git bundle` 完整快照，可用 `git clone <bundle> <dir>` 恢复或用于与上游做 diff）。
+
+## 产品身份（改名后）
+
+| 项 | 值 | 唯一来源 |
+| --- | --- | --- |
+| 产品名 | `NextCode`（Preview 身份为 `NextCode Preview`） | `packages/desktop/scripts/desktop-product-identity.mjs` |
+| appId / AUMID | `dev.nextcode.app`（Preview 为 `dev.nextcode.app.preview`） | 同上 |
+| Windows 可执行名 / 安装包名 | `NextCode.exe` / `NextCode-{version}-win-x64.exe` | 由 `productName` 派生 |
+| Linux 可执行名 / 包名 | `nextcode` / `nextcode` | 同上 |
+| 数据目录 | **仍为 `~/.zcode`**（`ZCODE_HOME` 可覆盖） | `packages/services/src/node.ts` |
+
+**刻意未改（避免破坏契约，属后续可选项）**：
+
+- 发给外部服务的标识：`packages/shared/src/zcode-source-headers.ts` 的 `User-Agent`/`X-Title`、
+  `openrouter-attribution.ts` 的 `X-OpenRouter-Title`、`desktopMenu.ts` 的 `ZCode Endpoint` 菜单项、
+  指向官方 CDN 与官方 MCP 额度的两条文案（`ssh.assetInstallModeDescription`、`chat.quota.mcp.codingPlanRequired`）。
+- 内部标识：`@zcode/*` 包 scope（2124 个文件）、`ZCODE_*` 环境变量（345 个文件）、
+  `ZCODE_PROTOCOL_NAME`/`"ZCode Protocol/1"`、存储键（`zcode-theme`、`zcode_lite_token`）、
+  `~/.zcode` 数据目录、错误信息前缀与被匹配的错误名（`ZCode session failed`、
+  `ZCodeAttachmentFaultError` 等，改名会破坏字符串匹配）。
+  这些用户看不见，全量替换是 2000+ 文件的机械改动，收益接近零而风险实在，故留作后续。
 
 ## 版本号管理
 
-版本号唯一来源是**仓库根 `package.json` 的 `version` 字段**（当前 `3.17.0`，上游开源基线为 commit `872ad96` 的 `3.14.0`）。
+版本号唯一来源是**仓库根 `package.json` 的 `version` 字段**（当前 `3.18.0`）。
 
 它流向这些地方，改一处全部生效（均为构建期读取，改完后需重新构建）：
 
 | 流向 | 说明 |
 | --- | --- |
-| 安装包文件名 | `packages/desktop/dist/ZCode-{version}-win-x64.exe` |
+| 安装包文件名 | `packages/desktop/dist/NextCode-{version}-win-x64.exe` |
 | 应用内版本 | 渲染层 `__ZCODE_VERSION__`（`packages/desktop/scripts/build-metadata.mjs` 读根版本注入） |
 | NSIS 元数据 | 安装器“程序和功能”里的 DisplayVersion |
 | 自动更新清单 | `dist/latest.yml`（版本比对依据） |
@@ -33,8 +60,57 @@
 | 2026-09-21 | 3.16.1 | `ZCode-3.16.1-win-x64.exe` | 修复侧栏项目自动揭示失效 + 提示词增强点击报错；新增激活项目自动置顶、Web/手机端布局适配、桌面端 Web 远控面板（见下） |
 | 2026-09-21 | 3.16.2 | `ZCode-3.16.2-win-x64.exe` | 修复手机图标状态色（开启服务变绿）与手机端任务列表背景透明（见下） |
 | 2026-09-22 | 3.17.0 | `ZCode-3.17.0-win-x64.exe` | 死代码与 ARMS 依赖清理 + i18n 死键工具与清理（410 键/语言）+ Web 服务响应安全头（CSP）（见下）。首次打包后又重打一次：清掉 node_modules 陈旧残留（`@arms/*`），随包不再含 ARMS SDK，191.3 → 190.1 MiB |
+| 2026-09-22 | 3.18.0 | `NextCode-3.18.0-win-x64.exe`（待打包） | **改名为 NextCode** + 主题选项收敛为单一来源 + CSP 补 `'wasm-unsafe-eval'`（见下） |
 
 ## 定制改动记录
+
+### 2026-09-22 改名为 NextCode（3.18.0）
+
+**背景**：本仓库基于 ZCode 开源版改造，需要自己的产品名。取名 NextCode（含义 Next Code）。
+命名查重结论（用于选名）：`ncode` npm 已被占用且有 856 个同名仓库与商业软件 HBM nCode；
+`nexcode` 已有同名 AI 代码助手（nexum-ai）与其他五个同名产品；`kodex`/`zerocode`/`nextcode`/
+`novacode` 均已被占用。NextCode 虽与 `nextcode`（Genomics 公司，非开发工具赛道）同名，但赛道不重叠。
+
+**改动范围（Tier 1：用户可见身份）**
+
+- `desktop-product-identity.mjs`：`productName` → NextCode / NextCode Preview，
+  `appId` → `dev.nextcode.app(.preview)`，Linux 可执行名与包名 → nextcode，开发态 AUMID 同步。
+- 渲染层与网页标题：`packages/web/index.html`、`packages/desktop/src/renderer/index.html`、
+  `cua-permission-panel.html`、`packages/web/src/main.tsx` 的 4 处 `document.title`。
+- 应用内文案：about 对话框（标题/版权/应用名）、托盘提示、侧栏无用户名时的品牌名、
+  工作区标题 `NextCode / <目录>`、CUA 权限面板与"正在操作电脑"浮层、分享落地页品牌、
+  web 登录页品牌、各 logo 的 `alt`/`aria-label`、反馈里的 “NextCode Agent” 标签。
+- i18n：两个语言文件**只改值不改键**，共 113 处（zh 50 / en 63），键名里含 `ZCode` 的
+  `titleBar.menu.help.toggleZCodeStdioTap` 未被误改（脚本断言过这一点）。
+- 顺带清理：`ZCODE_AGENT_PROVIDER_LABEL`（"ZCode Agent"）是无人引用的死导出，已删除。
+
+**未改**：见上文"产品身份"一节的"刻意未改"清单（外部服务标识与内部标识）。
+**副作用**：appId 变化意味着新旧版本在 Windows 上是两个应用（可并排安装、AUMID 独立）；
+Electron 数据目录随产品名变化，但设置/会话仍在 `~/.zcode`，不受影响。
+
+### 2026-09-22 主题选项收敛 + CSP wasm 许可
+
+**1) 主题选项（用户报告：设置→外观 看不到 Zai/黑客主题）**
+
+- 根因：界面主题存在两份硬编码列表——设置页用 `settingsPageConfig.ts` 的 `THEME_MODES`
+  （只有 system/zai-dark/zai-light，漏了 `hacker-dark`），侧栏头像菜单另手写 4 项；
+  且 `settings.themeMode.zai-dark` 的文案写作"深色"，看起来像只有系统/深色/浅色。
+- 收敛为唯一来源 `packages/ui/src/themeOptions.ts` 的 `THEME_OPTIONS`，两个入口都从它渲染；
+  标签统一到 `settings.themeOption.*`（系统 / Zai 深色 / Zai 浅色 / 黑客）；
+  历史主题 `light`/`dark` 仅保留读取兼容并登记在 `LEGACY_THEME_IDS`。
+- 新增 `packages/ui/test/themeOptions.test.ts`：id 唯一且在 `Theme` 联合内、每条 labelId
+  两种语言都在、`Theme` 联合成员必须"可选或显式登记为遗留"（本次漏项的守卫）。
+- 规则与验收见 `specs/theme-option-registry.md`。
+
+**2) CSP 补 `'wasm-unsafe-eval'`**
+
+- 回归：首版 `script-src` 缺该项，渲染层 WebAssembly 编译被拦（diff 高亮的 shiki-wasm/
+  oniguruma、office 预览的 docx/xlsx wasm）。只检查"有无违规"的浅层验证发现不了，
+  把交互跑深才暴露 `CompileError`。
+- 只放开 wasm 编译，不等于放开 `eval`；测试按 token 断言 `script-src` 不含
+  `'unsafe-eval'`/通配/远程来源，并锁定 `connect-src` 精确值。
+- 归因记录：隔离 profile 下的 `imeComposition` TypeError 用**关闭 CSP 的对照实验**复现过，
+  与本改动无关（既有问题）。详见 `specs/web-remote-security-headers.md`。
 
 ### 2026-09-22 死代码清理 + i18n 死键治理 + Web 服务安全头（3.17.0）
 
