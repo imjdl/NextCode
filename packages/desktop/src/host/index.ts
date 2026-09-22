@@ -2809,6 +2809,13 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               prepareLegacyAccountConnections,
               hostApiNetworkTransport,
               authorizeLocalMediaPreviewPath,
+              // 跨端同步（specs/web-mobile-cross-process-sync.md）：桌面 Host 也可能是
+              // "读者"——手机/Web 端发起的 turn 与任务写进共享库后，桌面 UI 订阅的是本
+              // 进程 runtime，不重读就永远看不到（用户实测的第二方向）。流式守卫保证
+              // 桌面自己生成中的会话不被重水合；watcher 对自身写入的冗余触发由 CLI
+              // 节流与去抖吸收。
+              crossProcessTaskIndexRefresh: true,
+              crossProcessConversationRefresh: true,
               runtimeProcessEnvPatch: msg.runtimeProcessEnvPatch,
               agentRuntimeContext: {
                 getDeviceMid: () => msg.deviceMid,
