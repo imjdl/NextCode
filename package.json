@@ -1,6 +1,6 @@
 {
   "name": "zcode",
-  "version": "3.16.2",
+  "version": "3.17.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -16,6 +16,8 @@
     "prepare:desktop-runtime": "pnpm --filter @zcode/desktop prepare:runtime-assets",
     "dep:graph": "node scripts/dependency-graph.mjs",
     "dep:refs": "node scripts/dep-refs.mjs",
+    "i18n:dead-keys": "node scripts/check-i18n-dead-keys.mjs",
+    "i18n:prune-dead-keys": "node scripts/remove-i18n-dead-keys.mjs",
     "verify:pre-push": "pnpm run lint && pnpm run architecture:check -- --changed",
     "build": "pnpm -r build",
     "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",
@@ -85,7 +87,6 @@
       "react-dom": "19.2.7"
     },
     "patchedDependencies": {
-      "@arms/rum-electron@0.0.3": "patches/@arms__rum-electron@0.0.3.patch",
       "@ai-sdk/openai-compatible@2.0.60": "patches/@ai-sdk__openai-compatible@2.0.60.patch",
       "@ai-sdk/anthropic@3.0.81": "patches/@ai-sdk__anthropic@3.0.81.patch"
     }

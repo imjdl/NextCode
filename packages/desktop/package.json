@@ -29,7 +29,6 @@
     "prepare:remote-assets-bundle": "node scripts/prepare-remote-assets-bundle.mjs"
   },
   "dependencies": {
-    "@arms/rum-electron": "^0.0.3",
     "@babel/runtime": "^7.24.5",
     "@fiahfy/icns": "^0.0.7",
     "@lydell/node-pty-linux-arm64": "1.2.0-beta.10",

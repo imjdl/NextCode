@@ -37,6 +37,7 @@ import {
 } from "@zcode/shared";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
+import { baseSecurityHeaders, htmlSecurityHeaders } from "./httpSecurityHeaders.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -314,6 +315,12 @@ export function createHttpServer(
     });
   }
 
+  // 所有响应统一带基础安全头；HTML 另有 CSP（见静态资源路由）。
+  app.use("*", async (c, next) => {
+    await next();
+    for (const [name, value] of Object.entries(baseSecurityHeaders())) c.header(name, value);
+  });
+
   app.get("/api/server-info", (c) => c.json(createServerInfo(options)));
   app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue()));
 
@@ -404,11 +411,13 @@ export function createHttpServer(
       if (!filePath) {
         return c.notFound();
       }
-      return c.body(await readFile(filePath), 200, {
-        "Cache-Control": filePath.endsWith("index.html")
-          ? "no-cache"
-          : "public, max-age=31536000, immutable",
+      const body = await readFile(filePath);
+      const isHtml = filePath.endsWith(".html");
+      return c.body(body, 200, {
+        "Cache-Control": isHtml ? "no-cache" : "public, max-age=31536000, immutable",
         "Content-Type": staticContentType(filePath),
+        // CSP 只加在 HTML 上：静态资源无需 CSP，API/预览响应加 CSP 反而会误伤内嵌内容。
+        ...(isHtml ? htmlSecurityHeaders(body.toString("utf8")) : {}),
       });
     });
   }

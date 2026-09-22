@@ -4,7 +4,7 @@
 
 ## 版本号管理
 
-版本号唯一来源是**仓库根 `package.json` 的 `version` 字段**（当前 `3.15.0`，上游开源基线为 commit `872ad96` 的 `3.14.0`）。
+版本号唯一来源是**仓库根 `package.json` 的 `version` 字段**（当前 `3.17.0`，上游开源基线为 commit `872ad96` 的 `3.14.0`）。
 
 它流向这些地方，改一处全部生效（均为构建期读取，改完后需重新构建）：
 
@@ -32,8 +32,50 @@
 | 2026-09-21 | 3.16.0 | `ZCode-3.16.0-win-x64.exe` | 去远程控制 + 遥测编译期硬关断（见下）；建议用此版替换 3.15.0 |
 | 2026-09-21 | 3.16.1 | `ZCode-3.16.1-win-x64.exe` | 修复侧栏项目自动揭示失效 + 提示词增强点击报错；新增激活项目自动置顶、Web/手机端布局适配、桌面端 Web 远控面板（见下） |
 | 2026-09-21 | 3.16.2 | `ZCode-3.16.2-win-x64.exe` | 修复手机图标状态色（开启服务变绿）与手机端任务列表背景透明（见下） |
+| 2026-09-22 | 3.17.0 | `ZCode-3.17.0-win-x64.exe` | 死代码与 ARMS 依赖清理 + i18n 死键工具与清理（410 键/语言）+ Web 服务响应安全头（CSP）（见下）。首次打包后又重打一次：清掉 node_modules 陈旧残留（`@arms/*`），随包不再含 ARMS SDK，191.3 → 190.1 MiB |
 
 ## 定制改动记录
+
+### 2026-09-22 死代码清理 + i18n 死键治理 + Web 服务安全头（3.17.0）
+
+**背景**：定制方向是"去掉官方通道与不用的能力、自己掌控构建"。本批次处理三件互相独立的
+卫生与安全问题，都不改产品功能。
+
+**1) 死代码与 ARMS 依赖清理**
+
+- 删除 11 个已无调用方的模块（`appARMSBootstrap`、`armsEventRedaction`、`armsUserIdentity`、
+  `forceUpdateGuard`、`forceUpdatePrompt`、`manifestUpdateProvider`、`startupTelemetryDelivery`、
+  `longTaskAttributionSummary`、`src/shared/armsRum*` 及 map）与 preload 里的 ARMS 转发补丁。
+- 从 `packages/desktop/package.json` 移除 `@arms/rum-electron` 依赖与 `patchedDependencies`
+  补丁项，`pnpm install --lockfile-only` 后 lockfile 无残留。
+- 效果：主进程/preload 不再引用官方遥测 SDK（此前是"编译期重定向到空实现"，现在是彻底移除）。
+
+**2) i18n 死键工具与清理**（规则与验收见 `specs/i18n-dead-key-tooling.md`）
+
+- 新增 `pnpm i18n:dead-keys`（报告 + 自检 + `--why` 单键诊断 + 双语键集一致性）与
+  `pnpm i18n:prune-dead-keys`（默认 dry-run，`-- --write` 才落盘）。
+- 判定不是"没搜到就删"：intl 的 id 是普通 string，删错键不会让 typecheck 失败、只会在运行时
+  显示键名；因此按**家族级**可证明条件判定（家族未被任何 token 提到 + 不是动态拼键前缀 +
+  不被更浅的动态前缀覆盖），只有满足条件的整族才可删。
+- 本次删除两语言各 410 个键（93 个最小家族，纯删除 920 行），如 `chat.promptEnhance.*`、
+  `carousel.*`、`debugInfo.*`；其余 1730+ 个"未使用但祖先仍被引用"的键保留并列入报告。
+- 采集侧三个坑已修并写进自检：不能跟随 `node_modules` 里的 workspace 符号链接（否则
+  locale 文件被当成引用来源、结果恒为 0）、检查脚本自身不得计入引用、locale 文件需排除。
+
+**3) Web 服务响应安全头（CSP）**（规则与验收见 `specs/web-remote-security-headers.md`）
+
+- 新增 `packages/server/src/httpSecurityHeaders.ts`，由 `http.ts` 应用：所有响应带
+  `nosniff` / `no-referrer` / `X-Frame-Options: DENY` / 收敛的 `Permissions-Policy`；
+  HTML 响应额外带 CSP（`script-src 'self' + 内联脚本 sha256`、`object-src 'none'`、
+  `frame-ancestors 'none'` 等）。
+- 内联脚本哈希按**实际发送的** index.html 计算，页面变化自动跟随；哈希必须原样（不 trim、
+  CRLF 折 LF），否则浏览器按原文本校验会直接阻断内联脚本。
+- 验证：手机视口（390×844 + 移动 UA）加载真实服务，无 CSP 违规/控制台错误/请求失败，
+  主题类正常应用；`packages/server/test/httpSecurityHeaders.test.ts` 8 项通过。
+- 桌面端不受影响：Electron 渲染层走 `loadFile`，不经这个 HTTP 服务。
+
+**门禁结果**：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全部通过；
+`node --test packages/server/test/httpSecurityHeaders.test.ts`（经 `tsx --test`）8/8 通过。
 
 ### 2026-09-21 新增「黑客」主题（hacker-dark）
 
@@ -282,6 +324,41 @@ pnpm run bundle -- --os win --arch x64 --dry-run                     # 只打印
 1. **先卸载现有的 ZCode**：如果机器上装过官方版（或定制首版装完已被官方自动更新覆盖），先用系统“卸载”清掉，避免快捷方式指错程序或 NSIS 同版本重装混淆。
 2. **清理更新缓存**：删除 `%LOCALAPPDATA%\@zcodedesktop-updater\`（electron-updater 下载缓存）。关闭更新开关后残留缓存不会自动执行，但清理可避免误判。
 3. 定制版设置页/菜单里的“检查更新”已 fail-closed，不会向官方服务器发请求。
+
+## node_modules 残留会被打进安装包（2026-09-22 实测）
+
+**现象**：删掉 `@arms/rum-electron` 依赖并更新 lockfile 后重新打包，`app.asar` 里仍出现
+`@arms/rum-browser`、`@arms/rum-core`、`@arms/rum-electron` 共 129 个条目。
+
+**根因**：这些目录是**磁盘上的陈旧 node_modules 残留**——它们已不在 `pnpm-lock.yaml`
+（`grep "@arms/" pnpm-lock.yaml` 为空）、源码里也无任何 import、`pnpm why @arms/rum-browser`
+查不到依赖方；但 electron-builder 是从磁盘上的 node_modules 树取文件，`pnpm install`
+（含 `--frozen-lockfile`）不会主动删除这类残留目录。
+
+**处理**：`rm -rf node_modules/@arms` 后重新打包（`bundle -- --os win --arch x64 --skip-prepare
+--skip-build` 约 8 分钟，代码未变时不需要全量重建），asar 即干净。
+
+**自查方法**：删依赖后按"顶层目录不在 lockfile 里"扫一遍残留，例如：
+
+```bash
+node -e '
+const fs=require("fs"),{parse}=require("yaml");
+const lock=parse(fs.readFileSync("pnpm-lock.yaml","utf8"));
+const names=new Set();
+const add=(k)=>{const s=k.replace(/^\//,""),i=s.lastIndexOf("@");if(i>0)names.add(s.slice(0,i));};
+Object.keys(lock.packages??{}).forEach(add);Object.keys(lock.snapshots??{}).forEach(add);
+const stale=[];
+for(const d of fs.readdirSync("node_modules")){
+  if(d.startsWith(".")||d==="@zcode")continue;
+  const list=d.startsWith("@")?fs.readdirSync(`node_modules/${d}`).map((s)=>`${d}/${s}`):[d];
+  for(const n of list) if(!names.has(n)) stale.push(n);
+}
+console.log("疑似残留:",stale.length,stale.slice(0,20).join(", "));
+'
+```
+
+说明：`string-width-cjs` / `strip-ansi-cjs` / `wrap-ansi-cjs` 是 npm 别名安装（`npm:` 协议），
+属正常条目，不是残留。
 
 ## winCodeSign 符号链接问题（复用手册）
 
