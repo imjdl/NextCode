@@ -29,6 +29,32 @@
   `ZCodeAttachmentFaultError` 等，改名会破坏字符串匹配）。
   这些用户看不见，全量替换是 2000+ 文件的机械改动，收益接近零而风险实在，故留作后续。
 
+## 品牌图形（README 图 / 图标 / 水印）
+
+命名与字形都从 ZCode 换成 NextCode：**粗斜体 Z → 同风格粗斜体 N**（沿用原型 Z 的笔重比例、
+斜度与圆角交界过渡），橙色/配色与圆角方底保持不变。
+
+| 类型 | 文件 | 说明 |
+| --- | --- | --- |
+| 徽标（矢量） | `packages/ui/src/assets/app-badge.svg` | 18×18 圆角方底 + 白 N，用于窗口左上角、折叠侧栏、闪屏 |
+| 字形路径（矢量） | `packages/ui/src/assets/brand-mark-paths.ts` | 由生成器产出的路径，`NextCodeLogo` 组件与徽标同源 |
+| 水印（矢量） | `packages/ui/src/assets/N.svg` | 草稿空态/欢迎页的暗色水印 |
+| 应用图标 | `packages/desktop/build/icon.png`（1024，留白版）、`icon_windows.png`、`icons/*`（满幅版） | mac 留白 9.4%+圆角 21%，Windows 满幅+圆角 12.6%，与原图标实测规格一致 |
+| Windows 图标/托盘/favicon | `packages/desktop/build/icon.ico`、`packages/web/public/favicon.ico` | PNG-in-ICO，7 个尺寸（16…256） |
+| 安装器图标 | `packages/desktop/build/icon_installer.png` / `.ico` | NSIS 安装/卸载/标题图标；保留原 3D 盒子，只把盒面字形换成 N |
+| **未替换（mac 专用）** | `build/icon.icns`、`build/icon_installer.icns`、`build/dmg_background.png` | icns 需 Apple 工具链；dmg 背景图含 ZCODE 字样，若要出 mac 包需一并重做 |
+
+**重新生成**（改字形参数后必须重跑，避免各处图形漂移）：
+
+```bash
+node scripts/generate-brand-assets.mjs           # 全部矢量资产 + PNG/ICO（约 30 秒）
+node scripts/generate-brand-assets.mjs --check   # 只出预览图 .brand-preview/icons.png，不写回
+node scripts/patch-installer-icon.mjs            # 安装器图标（从 git 取原始盒子图，可重复运行）
+```
+
+字形参数集中在 `scripts/generate-brand-assets.mjs` 的 `N_PARAMS`（斜度/字干宽/对角线重/圆角），
+组件内联标记引用同一份生成路径，所以不存在"组件画一份、SVG 画一份"的漂移。
+
 ## 版本号管理
 
 版本号唯一来源是**仓库根 `package.json` 的 `version` 字段**（当前 `3.18.0`）。

@@ -75,3 +75,6 @@ packages/desktop/.e2e-artifacts/
 packages/desktop/.e2e-cache/
 packages/desktop/.e2e-network-capture/
 .zcode-runtime/
+
+# 品牌资产生成器的预览输出
+.brand-preview/
