@@ -61,7 +61,8 @@ const enUS: Record<string, string> = {
   "occupationOnboarding.migration": "Migrate conversations",
   "occupationOnboarding.migrationDescription": "Migrate conversation history from Claude Code",
   "occupationOnboarding.memory": "Enable Workspace Memory",
-  "occupationOnboarding.memoryDescription": "Let NextCode remember your preferences and work context.",
+  "occupationOnboarding.memoryDescription":
+    "Let NextCode remember your preferences and work context.",
   "occupationOnboarding.suggestions": "Enable proactive task suggestions",
   "occupationOnboarding.suggestionsDescription":
     "Show suggestions in new conversations. Click to fill the composer.",
@@ -151,7 +152,7 @@ const enUS: Record<string, string> = {
   "chat.composer.attachment": "Attachments",
   "webRemote.title": "Phone access",
   "webRemote.description":
-    "Start the local web service, then scan the QR code from a phone on the same LAN. Turning it off stops the service.",
+    "Start the local web service, then scan the QR code from a phone on the same LAN.\nThe service is reachable only on the local network and is not exposed to the public internet; turning it off stops the service.",
   "webRemote.enable": "Enable web service",
   "webRemote.address": "LAN address",
   "webRemote.addressAll": "All interfaces (0.0.0.0)",
@@ -161,7 +162,7 @@ const enUS: Record<string, string> = {
   "webRemote.qrLoading": "Generating QR code…",
   "webRemote.copyLink": "Copy link",
   "webRemote.securityNotice":
-    "This link grants full access to this machine (file read/write and command execution). Use it only on a trusted LAN and turn the service off when done.",
+    "This link grants full access to this machine (file read/write and command execution).\nThe service is reachable only on the local network and never exposed to the public internet; use it only on a trusted LAN and turn it off when done.",
   "composer.promptEnhance.tooltip": "Enhance prompt",
   "composer.promptEnhance.staleDraft": "Draft changed while enhancing; left your text untouched",
   "composer.promptEnhance.failed": "Prompt enhancement failed. Please try again.",
@@ -3128,7 +3129,8 @@ const enUS: Record<string, string> = {
   "sidebar.usage.plan.toolCalls": "Tool calls",
   "sidebar.usage.plan.mcp": "NextCode MCP",
   "sidebar.usage.plan.zcodeMcp": "NextCode MCP",
-  "sidebar.usage.plan.zcodeMcpDescription": "Daily aggregate quota for NextCode built-in plugin MCPs",
+  "sidebar.usage.plan.zcodeMcpDescription":
+    "Daily aggregate quota for NextCode built-in plugin MCPs",
   "usage.error.chatPlan.credential":
     "Unable to read plan quota. Reconnect the Coding Plan account or confirm that the account has an active plan.",
   "usage.error.chatPlan.generic":

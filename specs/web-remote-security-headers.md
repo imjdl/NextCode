@@ -2,7 +2,7 @@
 
 ## 目标与背景
 
-局域网 Web 远控 / 独立 Web 服务的页面由 `createHttpServer` 以**明文 http** 提供，二维码 URL 里带
+手机端访问（局域网扫码）/ 独立 Web 服务的页面由 `createHttpServer` 以**明文 http** 提供，二维码 URL 里带
 token。原实现只设置 `Cache-Control` 与 `Content-Type`，页面没有任何能力限制：
 
 - 一旦渲染层出现可注入点（Markdown/HTML 预览、模型返回内容），注入的内容可以加载任意远程脚本；
@@ -80,4 +80,4 @@ token。原实现只设置 `Cache-Control` 与 `Content-Type`，页面没有任�
 - 明文 http 下的 token 仍可能被同网段被动嗅探；如需防嗅探要走 TLS 或改为一次性配对码换
   cookie（未做，属后续增强）。
 - 未加 `Permissions-Policy: display-capture=()`：桌面端浏览器视图依赖 `getDisplayMedia`，
-  收敛该项需先确认 Web 远控场景是否也要用。
+  收敛该项需先确认手机端访问场景是否也要用。

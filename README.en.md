@@ -40,16 +40,16 @@ product-identity section of BUILD.md for scope and rationale.
 
 ## Differences from upstream (summary)
 
-| Area               | This build                                                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Branding           | Product name, icons, installer and UI copy are NextCode (CLI command unchanged)                                          |
-| Official channels  | Docs/community/issue-report/feature-request and "check for updates" entries removed; no requests to the official backend |
-| Telemetry          | Disabled at compile time; the telemetry SDK dependency was removed                                                       |
-| Updates            | Official auto-update and forced upgrade are disabled                                                                     |
-| Remote workspaces  | Runtime assets ship with the installer and resolve locally first, not from the official CDN                              |
-| Themes             | Added a "hacker" theme; theme options have a single source shared by settings and the sidebar menu                       |
-| Web remote control | Built-in panel (QR pairing) plus response security headers (CSP) and mobile layout support                               |
-| Copy               | i18n dead-key tooling keeps the two locale tables in sync                                                                |
+| Area              | This build                                                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branding          | Product name, icons, installer and UI copy are NextCode (CLI command unchanged)                                                                                                       |
+| Official channels | Docs/community/issue-report/feature-request and "check for updates" entries removed; no requests to the official backend                                                              |
+| Telemetry         | Disabled at compile time; the telemetry SDK dependency was removed                                                                                                                    |
+| Updates           | Official auto-update and forced upgrade are disabled                                                                                                                                  |
+| Remote workspaces | Runtime assets ship with the installer and resolve locally first, not from the official CDN                                                                                           |
+| Themes            | Added a "hacker" theme; theme options have a single source shared by settings and the sidebar menu                                                                                    |
+| Phone access      | Desktop panel: after enabling, a phone on the **same LAN** scans a QR code to connect (**no public internet access**); plus response security headers (CSP) and mobile layout support |
+| Copy              | i18n dead-key tooling keeps the two locale tables in sync                                                                                                                             |
 
 ## Customization details and capability improvements
 
@@ -89,7 +89,7 @@ product-identity section of BUILD.md for scope and rationale.
 
 ### 3. Security and hygiene
 
-- Response security headers for the web service: `nosniff`, `no-referrer` (the QR URL carries a token),
+- Response security headers for the web service behind phone access: `nosniff`, `no-referrer` (the QR URL carries a token),
   `X-Frame-Options: DENY`, a tightened `Permissions-Policy`, and a CSP for HTML (scripts limited to this
   service plus sha256-hashed inline scripts, WebAssembly compilation allowed, `object-src 'none'`,
   `frame-ancestors 'none'`).
@@ -104,16 +104,16 @@ product-identity section of BUILD.md for scope and rationale.
 
 ### 4. New and improved capabilities
 
-| Capability               | What it does / what improved                                                                                                                                     |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prompt enhancement       | A button next to send polishes the current draft with the selected model and replaces it, with cancel and failure states                                         |
-| Sidebar promote & reveal | Activating a project moves it to the top of the list and scrolls it into view, so long project lists no longer require searching                                 |
-| Desktop web remote panel | A phone icon next to the username opens a panel: start/stop the service, choose the LAN IP, show a QR code for phone access; the icon turns green while running  |
-| Mobile / narrow viewport | Sidebar becomes an overlay drawer and starts collapsed, task list uses an opaque background, web entry points adapt; phones no longer get a desktop layout       |
-| Theme system             | New "hacker" theme (black/green with distinguishable semantic hues); theme options come from a single source shared by the settings page and the sidebar menu    |
-| Remote workspaces        | Assets ship with the installer (see above): from "download from the official CDN" to "local first, works offline"                                                |
-| Brand asset generator    | `scripts/generate-brand-assets.mjs` derives every vector and bitmap from parameterized glyph geometry, with size specs and leftover-glyph verification           |
-| Documentation            | README (zh/en) covering origin, license, layout and verification; BUILD.md for the change log and packaging manual; `specs/` for per-change rules and acceptance |
+| Capability               | What it does / what improved                                                                                                                                                                                                                   |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt enhancement       | A button next to send polishes the current draft with the selected model and replaces it, with cancel and failure states                                                                                                                       |
+| Sidebar promote & reveal | Activating a project moves it to the top of the list and scrolls it into view, so long project lists no longer require searching                                                                                                               |
+| Phone access (LAN only)  | A phone icon next to the username opens a panel: start/stop the service, choose the LAN IP, show a QR code for phone access; reachable **only on the local network, never exposed to the public internet**; the icon turns green while running |
+| Mobile / narrow viewport | Sidebar becomes an overlay drawer and starts collapsed, task list uses an opaque background, web entry points adapt; phones no longer get a desktop layout                                                                                     |
+| Theme system             | New "hacker" theme (black/green with distinguishable semantic hues); theme options come from a single source shared by the settings page and the sidebar menu                                                                                  |
+| Remote workspaces        | Assets ship with the installer (see above): from "download from the official CDN" to "local first, works offline"                                                                                                                              |
+| Brand asset generator    | `scripts/generate-brand-assets.mjs` derives every vector and bitmap from parameterized glyph geometry, with size specs and leftover-glyph verification                                                                                         |
+| Documentation            | README (zh/en) covering origin, license, layout and verification; BUILD.md for the change log and packaging manual; `specs/` for per-change rules and acceptance                                                                               |
 
 ### 5. Fixes
 
@@ -260,7 +260,7 @@ The full manual (version management, winCodeSign workaround, artifact verificati
 pnpm --filter @zcode/desktop run bundle -- --os win --arch x64
 ```
 
-Three stages: prepare runtime assets (bundled remote assets and the web-remote build) → production build →
+Three stages: prepare runtime assets (bundled remote assets and the web build for phone access) → production build →
 electron-builder. Artifacts land in `packages/desktop/dist/`: `NextCode-{version}-win-x64.exe`,
 `latest.yml`, `win-unpacked/`.
 
@@ -296,7 +296,7 @@ the notices are placed in each distribution.
 
 | Path                                               | Responsibility                                                                       |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `packages/desktop`                                 | Electron main, host, renderer, built-in web remote control, desktop packaging        |
+| `packages/desktop`                                 | Electron main, host, renderer, built-in LAN phone-access service, desktop packaging  |
 | `packages/web`                                     | Web client (mobile layout, first-paint theme)                                        |
 | `packages/server`                                  | HTTP / WebSocket service, security headers, remote connections                       |
 | `packages/zcode-server-cli`                        | Standalone server bootstrap and process management                                   |

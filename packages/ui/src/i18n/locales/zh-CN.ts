@@ -142,7 +142,7 @@ const zhCN: Record<string, string> = {
   "chat.composer.attachment": "附件",
   "webRemote.title": "手机访问",
   "webRemote.description":
-    "开启本机 Web 服务后，同一局域网内的手机可用浏览器扫码访问；关闭即停止服务。",
+    "开启本机 Web 服务后，同一局域网内的手机可用浏览器扫码访问。\n服务仅在局域网内可达，不支持公网访问；关闭即停止服务。",
   "webRemote.enable": "开启 Web 服务",
   "webRemote.address": "内网地址",
   "webRemote.addressAll": "所有网卡（0.0.0.0）",
@@ -152,7 +152,7 @@ const zhCN: Record<string, string> = {
   "webRemote.qrLoading": "正在生成二维码…",
   "webRemote.copyLink": "复制链接",
   "webRemote.securityNotice":
-    "该链接等于本机全权访问（可读写文件、执行命令），仅限可信局域网内使用，用完请关闭服务。",
+    "该链接等于本机全权访问（可读写文件、执行命令）。\n服务只在局域网内可达、不支持公网访问，请仅限可信局域网使用，用完关闭服务。",
   "composer.promptEnhance.tooltip": "优化提示词",
   "composer.promptEnhance.staleDraft": "提示词在你编辑期间已变更，未覆盖",
   "composer.promptEnhance.failed": "提示词优化失败，请重试",
@@ -3205,7 +3205,8 @@ const zhCN: Record<string, string> = {
   "settings.skills.diagnostics.code.skill_too_large": "SKILL.md 体积过大已截断",
   "settings.skills.diagnostics.code.skill_not_found": "技能未找到",
   "settings.subagents.title": "子智能体",
-  "settings.subagents.description": "管理 NextCode Agent 运行时消费的用户级子智能体 Markdown 文件。",
+  "settings.subagents.description":
+    "管理 NextCode Agent 运行时消费的用户级子智能体 Markdown 文件。",
   "settings.subagents.workspaceScopeUnsupported": "暂不支持工作区级创建或编辑",
   "settings.subagents.searchPlaceholder": "搜索子智能体...",
   "settings.subagents.empty": "没有找到子智能体",
