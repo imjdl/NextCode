@@ -438,6 +438,30 @@ asar 内不含遥测 SDK（`@arms`）、CSP 与安全头就位（含 `'wasm-unsa
 「使用统计」、设置页套餐卡无升级/订阅按钮、额度横幅无升级按钮、应用启动后不会再被官方更新覆盖、
 设置→外观的主题下拉框能看到「黑客」主题、用户名旁的手机图标可开启局域网访问面板。
 
+### 安装后异常：先判断安装是否完整（2026-09-22 实测踩到过）
+
+```bash
+node scripts/check-install-integrity.mjs "D:/apps/ncode/NextCode"   # 不传路径则扫常见安装位置
+```
+
+**症状**：装完后打开**任意会话**都报
+`Failed to resume persisted session …: Unexpected token '\u0000', "\u0000\u0000\u0000…" is not valid JSON`，
+而 dev 模式（`pnpm dev:desktop`）一切正常。
+
+**结论：安装包完好，是安装落盘不完整**。证据链：
+
+- 安装包解包后，2517 个小文本文件零填充 **0** 个；
+- 同一批文件安装到磁盘后，**2336 个**变成「大小正确、内容全零」，包括 agent 启动要读的
+  `resources/glm/.node-bundle-meta.json`、`resources/config/default.json`、
+  `resources/tools/*/.bundle-meta.json`、各插件 `plugin.json` 等 ⇒ agent 读到零字节 JSON，
+  所有会话恢复失败；dev 模式不读安装目录，所以不受影响。
+
+「大小正确、内容全零」是数据块未落盘的典型形态（安装期间断电/强制重启，或杀软等过滤驱动干扰），
+与代码和打包无关。
+
+**处理**：用同一个安装包**覆盖重装**即可恢复。若反复出现，检查磁盘（管理员运行 `chkdsk D: /scan`）、
+杀软的实时防护是否拦截写入，以及系统事件日志在安装时间点附近是否有异常关机记录。
+
 ### 安装定制包的注意事项
 
 1. **先卸载现有的 ZCode**：如果机器上装过官方版（或定制首版装完已被官方自动更新覆盖），先用系统“卸载”清掉，避免快捷方式指错程序或 NSIS 同版本重装混淆。
