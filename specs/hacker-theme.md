@@ -20,6 +20,11 @@
    - 品牌/主色为霓虹绿；边框为低透明绿。
    - **语义色保留色相语义**：destructive 红、warning 琥珀、git/diff 增删色、terminal 的 red/yellow/blue/magenta 仍可区分——纯绿 ANSI 会让错误与 diff 不可读。
 3. **可选入口**：侧栏 footer 主题菜单与设置页主题选择器都能选到；label 为「黑客」/「Hacker」。
+   > 修正（2026-09-22）：本次交付时**只有侧栏菜单真的能选到**，设置页用的另一份硬编码列表
+   > （`settingsPageConfig.ts` 的 `THEME_MODES`）漏了 `hacker-dark`，而且 `settings.themeMode.zai-dark`
+   > 的文案写作"深色"，用户看到的下拉框只有 系统/深色/浅色。现已把可选主题收敛成单一来源
+   > `@/themeOptions.ts`，两个入口都从它渲染；规则与守卫见 `specs/theme-option-registry.md`。
+   > 教训：验收场景里写"两个入口都能选到"就必须**两个入口都实际点开看**，不能只改类型与枚举点。
 4. **首屏不闪错底色**：`packages/web/index.html` 的 `BROWSER_THEME_COLORS` 与主题归一化脚本需包含该主题（桌面渲染层无此映射，不需改）。
 5. **`applyTheme` 泛化**：由"硬编码 3 个 classList.toggle"改为按主题注册表清理并切换 `theme-*` 类，避免每加一个主题都要改这一处（本次连同实现）。
 

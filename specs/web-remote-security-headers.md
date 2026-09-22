@@ -46,9 +46,34 @@ token。原实现只设置 `Cache-Control` 与 `Content-Type`，页面没有任�
    首屏主题类（如 `theme-zai-dark`）已应用（证明内联脚本执行成功）。
 3. 内联脚本变化后（重新构建 web 产物）哈希自动跟随，不需要人工维护。
 4. `packages/server/test/httpSecurityHeaders.test.ts` 覆盖：哈希不做 trim 的回归用例、
-   CRLF 归一化、`src` 脚本与空脚本不参与哈希、CSP 关键指令存在且 `script-src` 不含
-   `unsafe-inline`/通配。
+   CRLF 归一化、`src` 脚本与空脚本不参与哈希、CSP 关键指令存在、`script-src` 按 token 校验
+   不许出现 `'unsafe-eval'`/`'unsafe-inline'`/通配/远程来源、`connect-src` 精确等于
+   `'self' ws: wss:`。
 5. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 通过。
+
+## 实测踩到的两个坑（第二版修正）
+
+1. **漏了 `'wasm-unsafe-eval'` 会打断渲染层功能，而且第一轮验收发现不了**：首版 `script-src`
+   只有 `'self'` + 内联哈希，页面照样渲染，首轮只检查"有没有 CSP 违规"时没发现——直到把
+   交互跑深（打开头像菜单、进设置页、展开下拉）才暴露
+   `CompileError: WebAssembly.instantiate() ... violates script-src`：
+   diff 高亮的 `shiki-wasm`（oniguruma）、office 预览的 docx/xlsx wasm 都在渲染层实例化。
+   现已在 `script-src` 加入 `'wasm-unsafe-eval'`（只放开 wasm 编译，不等于放开 `eval`），
+   并用"按 token 断言不许出现 `'unsafe-eval'`"的测试锁住边界。
+   **教训**：CSP 验收必须跑真实交互路径，只看"有没有违规"会把功能回归漏掉。
+2. **`connect-src` 拦掉了 Web 客户端直连官方后端的配置请求**：`packages/web/src/communityUrl.ts`
+   会用 `buildHelpAppConfigUrl` 直连 `https://zcode.z.ai/api/v1/client/configs?app_version=...`
+   取社区/反馈链接。本任务**刻意保持拦截**（定制版不让页面直连官方后端），
+   调用方已有 `try/catch` 回退到 `config/default.json` 内置入口，功能不受影响；
+   代价是控制台每次会出现一条 CSP 违规记录。若要改回允许，把该 origin 加进 `connect-src` 即可。
+
+## 与本次无关但被顺手查清的观察
+
+- 在无凭据的隔离 profile 下跑 LAN Web UI，页面会抛一次
+  `TypeError: Cannot read properties of undefined (reading 'length')`（栈落在
+  `TabStoreProvider`/zustand 渲染路径上，生产构建与 `imeComposition` 共享 chunk）。
+  用**关闭 CSP 的对照实验**（临时移除 CSP 响应头）复现过：同样报错 ⇒ **与本 CSP 改动无关**，
+  属既有问题；桌面端未见用户报告，此处仅记录以免后续重复排查。
 
 ## 已知遗留
 

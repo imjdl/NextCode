@@ -48,7 +48,10 @@ export function inlineScriptHashes(html: string): string[] {
  * 因此内联脚本哈希与页面始终一致（不存在"改了页面忘了改哈希"）。
  */
 export function htmlSecurityHeaders(html: string): Record<string, string> {
-  const scriptSources = ["'self'", ...inlineScriptHashes(html)].join(" ");
+  // 'wasm-unsafe-eval' 是 WebAssembly 编译所必需（diff 高亮的 shiki-wasm/oniguruma、
+  // office 预览的 docx/xlsx wasm 都在渲染层实例化）。它只允许编译 wasm，
+  // 不等于放开 eval；缺失时 wasm 会直接编译失败（实测报 CompileError）。
+  const scriptSources = ["'self'", "'wasm-unsafe-eval'", ...inlineScriptHashes(html)].join(" ");
   const policy = [
     "default-src 'self'",
     `script-src ${scriptSources}`,
@@ -58,6 +61,8 @@ export function htmlSecurityHeaders(html: string): Record<string, string> {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "media-src 'self' data: blob:",
+    // 不放开 https:：Web 客户端会直连官方 zcode.z.ai/api/v1/client/configs 取社区/反馈链接，
+    // 这里刻意拦截（定制版不向官方后端发请求），其调用方已有 try/catch 回退内置默认值。
     "connect-src 'self' ws: wss:",
     "worker-src 'self' blob:",
     "frame-src 'self' blob: data:",

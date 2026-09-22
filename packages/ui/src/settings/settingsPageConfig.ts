@@ -1,12 +1,10 @@
 import {
   Monitor,
-  Moon,
   Settings,
   Settings2,
   Package,
   Bot,
   Palette,
-  Sun,
   BarChart3,
   Terminal,
   AlarmClock,
@@ -20,16 +18,9 @@ import {
   FileSearch,
 } from "lucide-react";
 import { isSettingsSectionEnabled, type SettingsSectionId } from "@/lib/settingsNavigation.js";
-import type { Theme } from "@/useTheme.js";
 
-export const THEME_MODES: Array<{
-  mode: Theme;
-  icon: typeof Sun;
-}> = [
-  { mode: "system", icon: Monitor },
-  { mode: "zai-dark", icon: Moon },
-  { mode: "zai-light", icon: Sun },
-];
+// 界面主题选项已收敛到 @/themeOptions.js 的 THEME_OPTIONS（唯一定义处），
+// 这里不再重复维护列表：两份列表曾导致设置页漏掉 hacker-dark。
 
 type SettingsSectionGroupId = "basics" | "agentCapabilities" | "dataAndStats";
 

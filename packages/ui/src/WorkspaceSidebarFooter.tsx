@@ -47,6 +47,7 @@ import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
 import type { Theme } from "@/useTheme.js";
+import { THEME_OPTIONS } from "@/themeOptions.js";
 import {
   WorkspaceSidebarFooterPlanBadge,
   WorkspaceSidebarFooterUsageSummaryContent,
@@ -287,27 +288,13 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                 {intl.formatMessage({ id: "settings.themeMode" })}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
+                {/* 与设置页共用同一份选项来源，避免两处列表漂移（见 specs/theme-option-registry.md）。 */}
                 <DropdownMenuRadioGroup value={theme} onValueChange={onThemeChange}>
-                  <DropdownMenuRadioItem value="system">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.systemDefault",
-                    })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="zai-dark">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.theme.zai-dark",
-                    })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="zai-light">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.theme.zai-light",
-                    })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="hacker-dark">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.theme.hacker-dark",
-                    })}
-                  </DropdownMenuRadioItem>
+                  {THEME_OPTIONS.map((option) => (
+                    <DropdownMenuRadioItem key={option.id} value={option.id}>
+                      {intl.formatMessage({ id: option.labelId })}
+                    </DropdownMenuRadioItem>
+                  ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>

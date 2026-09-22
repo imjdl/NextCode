@@ -20,8 +20,17 @@ import {
 import { getCodePreviewTheme } from "@/lib/codePreviewPreferences.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
-import { THEME_MODES } from "@/settings/settingsPageConfig.js";
+import { THEME_OPTIONS, type ThemeOptionIcon } from "@/themeOptions.js";
 import { MAX_UI_FONT_SIZE_PX, MIN_UI_FONT_SIZE_PX } from "@/lib/uiFontSize.js";
+import { Monitor, Moon, Sun, Terminal } from "lucide-react";
+
+/** registry 只存图标种类名，具体图标在这里映射（见 specs/theme-option-registry.md）。 */
+const THEME_OPTION_ICONS: Record<ThemeOptionIcon, typeof Sun> = {
+  system: Monitor,
+  dark: Moon,
+  light: Sun,
+  hacker: Terminal,
+};
 
 function FontSizeInput({
   value,
@@ -122,16 +131,17 @@ export function AppearanceSectionContent({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {THEME_MODES.map(({ mode, icon: Icon }) => (
-                      <SelectItem key={mode} value={mode}>
-                        <div className="flex items-center gap-2">
-                          <Icon className="size-4" />
-                          {intl.formatMessage({
-                            id: `settings.themeMode.${mode}`,
-                          })}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {THEME_OPTIONS.map(({ id, labelId, icon }) => {
+                      const Icon = THEME_OPTION_ICONS[icon];
+                      return (
+                        <SelectItem key={id} value={id}>
+                          <div className="flex items-center gap-2">
+                            <Icon className="size-4" />
+                            {intl.formatMessage({ id: labelId })}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               }
