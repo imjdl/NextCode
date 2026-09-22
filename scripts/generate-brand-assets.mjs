@@ -11,8 +11,8 @@
  * 用法：node scripts/generate-brand-assets.mjs [--check]
  *   --check  只渲染到临时目录做对比，不写回仓库资产
  */
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -190,6 +190,63 @@ function buildIco(images) {
   return Buffer.concat([header, ...directory, ...payloads]);
 }
 
+/**
+ * 原型 Z 字形的路径片段。它们只应出现在本文件的"源码内联位置"清单里；
+ * 源码别处再出现就说明又有地方漏换（3.18.0 首轮就漏了启动徽标、两个 HTML 外壳与关于窗口）。
+ */
+const LEGACY_Z_FRAGMENTS = [
+  "M134.4 0.130152L116.48 25.6022C113.665 29.5699 109.054 32.0019 104.064 32.0019H6.3999V0C6.3999 0.130149 134.4 0.130152 134.4 0.130152Z",
+  "M256 0.130127L102.401 217.732H0L153.599 0.130127H256Z",
+  "M121.601 217.732L139.65 192.134C142.465 188.166 147.076 185.734 152.067 185.734H249.604V217.736H121.601V217.732Z",
+];
+
+/** 扫描源码，确认没有遗留的原型 Z 字形（发现即报错，避免再出现"改了 logo 但某处还是 Z"）。 */
+function assertNoLegacyGlyph() {
+  const skipDirs = new Set([
+    "node_modules",
+    "dist",
+    "dist-types",
+    "out",
+    "resources",
+    "bundled-agents",
+    "mock-cdn",
+    ".turbo",
+  ]);
+  const found = [];
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (skipDirs.has(entry.name) || entry.name.startsWith(".")) continue;
+        walk(full);
+        continue;
+      }
+      if (!/\.(ts|tsx|js|jsx|mjs|cjs|html|svg)$/.test(entry.name)) continue;
+      if (full.endsWith("generate-brand-assets.mjs")) continue;
+      const text = readFileSync(full, "utf8");
+      for (const fragment of LEGACY_Z_FRAGMENTS) {
+        if (text.includes(fragment)) {
+          found.push(relative(repoRoot, full).replaceAll("\\", "/"));
+          break;
+        }
+      }
+    }
+  };
+  for (const root of ["packages", "apps", "scripts", "config"]) walk(resolve(repoRoot, root));
+  if (found.length > 0) {
+    throw new Error(
+      `发现未替换的原型 Z 字形，请换成 N（字形见 packages/ui/src/assets/brand-mark-paths.ts）：\n - ${found.join("\n - ")}`,
+    );
+  }
+}
+
 /* ------------------------------------------------------------- 执行 */
 
 const chromiumPath = process.env["VERIFY_CHROME"] ??
@@ -206,6 +263,7 @@ async function renderSvg(page, svg, size, background = null) {
 }
 
 async function main() {
+  assertNoLegacyGlyph();
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ executablePath: chromiumPath });
   const page = await browser.newPage();
