@@ -88,6 +88,7 @@ node scripts/patch-installer-icon.mjs            # 安装器图标（从 git 取
 | 2026-09-21         | 3.16.2 | `ZCode-3.16.2-win-x64.exe`                 | 修复手机图标状态色（开启服务变绿）与手机端任务列表背景透明（见下）                                                                                                                                                    |
 | 2026-09-22         | 3.17.0 | `ZCode-3.17.0-win-x64.exe`                 | 死代码与 ARMS 依赖清理 + i18n 死键工具与清理（410 键/语言）+ Web 服务响应安全头（CSP）（见下）。首次打包后又重打一次：清掉 node_modules 陈旧残留（`@arms/*`），随包不再含 ARMS SDK，191.3 → 190.1 MiB                 |
 | 2026-09-22         | 3.18.0 | `NextCode-3.18.0-win-x64.exe`（189.6 MiB） | **改名为 NextCode + 全套新品牌图形**（logo/图标/启动徽标/README 图标）+ 去掉官方渠道入口（文档/社群/上报/提需求/检查更新）+ 主题选项收敛为单一来源 + CSP 补 `'wasm-unsafe-eval'` + 手机端访问文案写明仅局域网（见下） |
+| 2026-09-23         | 3.18.1 | `NextCode-3.18.1-win-x64.exe`              | **跨端同步**：桌面↔Web/手机端双向内容同步（共享库变更通知 + `v4/conversation/refresh` 重水合）+ 运行状态实时化（共享库运行心跳，侧栏动画两端一致）+ 流式内容准实时镜像（进行中 part 落库，thinking/正文 1–3s 一拍呈现，进行中不再误显「已停止」）（见 `specs/web-mobile-cross-process-sync.md`） |
 
 ## 定制改动记录
 
@@ -395,8 +396,14 @@ Electron 数据目录随产品名变化，但设置/会话仍在 `~/.zcode`，�
 
 ```bash
 cd packages/desktop
-pnpm run bundle -- --os win --arch x64
+ZCODE_ENV=production pnpm run bundle -- --os win --arch x64
 ```
+
+**`ZCODE_ENV=production` 必须显式给出**：产品身份按 `ZCODE_ENV` fail-safe——未设置或未知值一律按
+测试身份处理，产物变成 `NextCode Preview-{version}-win-x64_TEST.exe`（productName `NextCode Preview`、
+appId `dev.nextcode.app.preview`），真机上与正式版并排安装、不覆盖，**不能当正式包发布**
+（实测踩到过：同一个 shell 里漏传该变量，构建静默产出 `_TEST` 包）。产物名对照见
+`packages/desktop/scripts/desktop-product-identity.mjs`。
 
 流水线三阶段（`scripts/bundle.mjs` 编排，自带下载重试与产物校验）：
 
