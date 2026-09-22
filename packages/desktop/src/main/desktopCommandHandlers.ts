@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 桌面命令分发需要共享窗口与平台上下文，集中维护更便于一致性 */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { app, BrowserWindow, dialog, session, shell } from "electron";
+import { app, BrowserWindow, dialog, shell } from "electron";
 import type { MessageBoxOptions } from "electron";
 import {
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
@@ -13,7 +13,6 @@ import {
   type WebRemoteStartRequest,
   resolveRuntimeZCodeEndpointOrigin,
   ZCODE_ENV,
-  ZCODE_PRODUCT_FLAVOR,
   buildZCodeEndpointUrls,
   getCommunityUrlFromConfigs,
   getFeedbackUrlFromConfig,
@@ -24,7 +23,6 @@ import {
 import { readZCodeStdioTapDevState, setZCodeStdioTapDevEnabled } from "@zcode/services/node";
 import { showAboutDialog } from "./about.js";
 import { DEFAULT_WEB_REMOTE_PORT, type WebRemoteControl } from "./webRemoteControl.js";
-import { checkForUpdateMenuClick } from "./autoUpdater.js";
 import { exportLogs } from "./exportLogs.js";
 import { openResourceManager } from "./resourceManagerWindow.js";
 import { resolveCuaOsSupport } from "./cuaOsSupport.js";
@@ -248,22 +246,6 @@ async function openFeedback(
     return;
   }
   if (config.feedback_url) await shell.openExternal(config.feedback_url);
-}
-
-async function openCommunity(
-  locale: Locale,
-  logger: {
-    warn: (...args: unknown[]) => void;
-    error: (...args: unknown[]) => void;
-  },
-  fetchRemoteConfig?: () => Promise<unknown>,
-) {
-  const communityUrl = await resolveCommunityUrl({ locale, logger, fetchRemoteConfig });
-  if (!communityUrl) {
-    logger.warn("[community] community_urls is missing from both remote and local config");
-    return;
-  }
-  await shell.openExternal(communityUrl);
 }
 
 async function promptCustomZCodeEndpoint(
@@ -574,26 +556,11 @@ export async function executeDesktopCommand(options: {
         }),
       );
       return;
-    case DesktopCommandIds.CheckForUpdates:
-      // 按产品身份而不是后端环境放行：生产后端的 Preview 同样没有更新器。
-      if (ZCODE_PRODUCT_FLAVOR === "production") {
-        checkForUpdateMenuClick(targetWindow);
-      } else {
-        options.logger.info("[auto-update] Preview 已禁用手动更新检查");
-      }
-      return;
     case DesktopCommandIds.RelaunchApp:
       await options.onRelaunchApp();
       return;
     case DesktopCommandIds.OpenFeedback:
       await openFeedback(options.logger, targetWindow, options.fetchHelpConfig);
-      return;
-    case DesktopCommandIds.OpenCommunity:
-      await openCommunity(
-        options.currentApplicationLocale,
-        options.logger,
-        options.fetchHelpConfig,
-      );
       return;
     case DesktopCommandIds.ExportLogs:
       await exportLogs();

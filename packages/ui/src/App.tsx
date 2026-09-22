@@ -46,7 +46,6 @@ import {
   type SettingsSectionId,
 } from "@/lib/settingsNavigation.js";
 import { runWorkspaceVisibleCommand } from "@/lib/workspaceVisibleCommand.js";
-import { ZCODE_PRODUCT_DOCS_URL } from "@/lib/productDocs.js";
 import appLogoUrl from "@/assets/app-badge.svg";
 import { resolveTheme } from "@/useTheme.js";
 import { WorkspaceShellLayout } from "@/app-shell/WorkspaceShellLayout.js";
@@ -343,7 +342,6 @@ export function App({
     useState<ChatSearchResultHighlightRequest | null>(null);
   const [fileChangeFindState, setFileChangeFindState] = useState(createTaskFindNavigationState);
   const [fileChangeFindMatchCount, setFileChangeFindMatchCount] = useState(0);
-  const [canOpenCommunityFromQuickPick, setCanOpenCommunityFromQuickPick] = useState(false);
   const [gitSelectedSourceId, setGitSelectedSourceId] = useState<GitChangeSourceId>("unstaged");
   const [gitRefreshVersion, setGitRefreshVersion] = useState(0);
   const { browserRestoreUrls, handleBrowserUrlChange } = useTaskSidePaneMemoryBridge({
@@ -661,9 +659,6 @@ export function App({
   const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
   const openFeedbackTickets = useFeedbackStore((state) => state.openTickets);
   const isLoggedIn = Boolean(user);
-  const handleOpenFeedback = useCallback(() => {
-    void platform.openFeedback();
-  }, [platform]);
 
   useEffect(() => {
     // 内置反馈中心合并了"提交反馈 / 我的反馈"两个 Tab，
@@ -679,10 +674,6 @@ export function App({
       disposeTicketsPanel?.();
     };
   }, [openFeedbackSubmit, openFeedbackTickets, platform]);
-  const handleOpenCommunity = useCallback(() => platform.openCommunity(), [platform]);
-  const handleOpenProductDocs = useCallback(() => {
-    platform.openExternal(ZCODE_PRODUCT_DOCS_URL);
-  }, [platform]);
   const themeTarget = resolveTheme(theme) === "dark" ? "light" : "dark";
   const handleSwitchTheme = useCallback(() => {
     setTheme(themeTarget);
@@ -970,34 +961,12 @@ export function App({
       : null,
   });
 
-  useEffect(() => {
-    let disposed = false;
-
-    void platform.canOpenCommunity(locale).then(
-      (visible) => {
-        if (!disposed) {
-          setCanOpenCommunityFromQuickPick(visible);
-        }
-      },
-      () => {
-        if (!disposed) {
-          setCanOpenCommunityFromQuickPick(false);
-        }
-      },
-    );
-
-    return () => {
-      disposed = true;
-    };
-  }, [locale, platform]);
-
   const quickPickCommands = useMemo(
     () =>
       createQuickPickCommands({
         supportsTerminal: !isOfficeMode,
         supportsReview: !isOfficeMode,
         allowOpenWorkspace,
-        canOpenCommunity: canOpenCommunityFromQuickPick,
         isSidebarVisible,
         supportsEmbeddedBrowser,
         // quick pick 命令只关心登录态布尔值。
@@ -1023,9 +992,6 @@ export function App({
             openSettingsTab();
           },
           switchTheme: handleSwitchTheme,
-          openFeedback: handleOpenFeedback,
-          openCommunity: handleOpenCommunity,
-          openProductDocs: handleOpenProductDocs,
           login: onLogin,
           logout: onLogout,
           toggleSidebar: () => runVisibleWorkspaceCommand(handleToggleSidebar),
@@ -1039,10 +1005,6 @@ export function App({
     [
       allowOpenWorkspace,
       isOfficeMode,
-      canOpenCommunityFromQuickPick,
-      handleOpenCommunity,
-      handleOpenFeedback,
-      handleOpenProductDocs,
       handleOpenSettingsSection,
       handleSwitchTheme,
       handleOpenBrowserTab,

@@ -274,7 +274,6 @@ export const PlatformChannels = {
   /** Renderer → Main：打开外部 URL（用于 OAuth 跳转浏览器） */
   OpenExternal: "zcode:open-external",
   /** Renderer → Main：查询当前语言下是否存在可用的用户社群入口 */
-  CanOpenCommunity: "zcode:can-open-community",
   /** Renderer → Main：在系统文件管理器中打开路径 */
   OpenInFileManager: "zcode:open-in-file-manager",
   /** Renderer → Main：使用系统默认应用打开本地文件 */
@@ -806,10 +805,6 @@ export interface PlatformChannelMap {
   [PlatformChannels.BrowserViewRestore]: {
     request: BrowserViewResidencyTransitionPayload;
     response: void;
-  };
-  [PlatformChannels.CanOpenCommunity]: {
-    request: Locale;
-    response: boolean;
   };
   [PlatformChannels.OpenInFileManager]: {
     request: string;

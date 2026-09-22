@@ -34,9 +34,7 @@ export function createDesktopPlatform(options: {
     migrateLegacyCommonMcp: (payload) => window.zcode.migrateLegacyCommonMcp(payload),
     openExternal: (url) => window.zcode.openExternal(url),
     openFeedback: () => window.zcode.executeDesktopCommand(DesktopCommandIds.OpenFeedback),
-    openCommunity: () => window.zcode.executeDesktopCommand(DesktopCommandIds.OpenCommunity),
-    canOpenCommunity: (locale) => window.zcode.canOpenCommunity(locale),
-    openInFileManager: (path) => window.zcode.openInFileManager(path),
+        openInFileManager: (path) => window.zcode.openInFileManager(path),
     openExternalFile: (path) => window.zcode.openExternalFile(path),
     openCuaPermissionOnboarding: window.zcode.openCuaPermissionOnboarding
       ? (permissionOptions) =>

@@ -562,8 +562,6 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 打开外部 URL（用于 OAuth 跳转浏览器） */
   openExternal: (url: string) => ipcRenderer.send(PlatformChannels.OpenExternal, url),
   /** 查询当前语言下是否存在可用的用户社群入口 */
-  canOpenCommunity: (locale: Locale): Promise<boolean> =>
-    ipcRenderer.invoke(PlatformChannels.CanOpenCommunity, locale),
   /** 在系统文件管理器中打开指定路径 */
   openInFileManager: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenInFileManager, path),
   /** 使用系统默认应用打开本地文件 */

@@ -477,10 +477,8 @@ export const DesktopCommandIds = {
   ZoomOut: "zoomOut",
   ShowAbout: "showAbout",
   OpenChangelog: "openChangelog",
-  CheckForUpdates: "checkForUpdates",
   RelaunchApp: "relaunchApp",
   OpenFeedback: "openFeedback",
-  OpenCommunity: "openCommunity",
   ExportLogs: "exportLogs",
   ToggleDevTools: "toggleDevTools",
   OpenResourceManager: "openResourceManager",
@@ -687,10 +685,8 @@ export interface IPlatformService {
   onOpenTicketsPanel?(handler: () => void): () => void;
 
   /** 打开用户社群入口，由平台自行解析当前语言对应渠道 */
-  openCommunity(): Promise<void>;
 
   /** 查询当前语言下是否存在可用的用户社群入口 */
-  canOpenCommunity(locale: Locale): Promise<boolean>;
 
   /** 在系统文件管理器中打开指定路径 */
   openInFileManager(path: string): Promise<{ success: boolean; error?: string }>;

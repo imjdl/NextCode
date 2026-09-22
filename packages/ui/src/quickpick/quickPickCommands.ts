@@ -52,9 +52,6 @@ interface QuickPickCommandHandlers {
   openSkillsSettings: () => void;
   openMcpSettings: () => void;
   switchTheme: () => void;
-  openFeedback: () => void | Promise<void>;
-  openCommunity: () => void | Promise<void>;
-  openProductDocs: () => void | Promise<void>;
   login?: () => void | Promise<void>;
   logout?: () => void | Promise<void>;
   toggleSidebar: () => void;
@@ -67,7 +64,6 @@ interface QuickPickCommandHandlers {
 
 interface CreateQuickPickCommandsOptions {
   allowOpenWorkspace: boolean;
-  canOpenCommunity: boolean;
   isSidebarVisible: boolean;
   isLoggedIn: boolean;
   supportsEmbeddedBrowser?: boolean;
@@ -85,7 +81,6 @@ interface CreateQuickPickCommandsOptions {
 
 export function createQuickPickCommands({
   allowOpenWorkspace,
-  canOpenCommunity,
   isSidebarVisible,
   isLoggedIn,
   supportsEmbeddedBrowser = true,
@@ -229,44 +224,8 @@ export function createQuickPickCommands({
     },
   ];
 
-  commands.push({
-    id: "feedback",
-    sectionId: "app",
-    titleId: "quickPick.command.feedback",
-    icon: "feedback",
-    keywords: [
-      "feedback",
-      "issue",
-      "support",
-      "tickets",
-      "问题上报",
-      "问题反馈",
-      "反馈",
-      "我的反馈",
-      "工单",
-    ],
-    run: handlers.openFeedback,
-  });
-
-  if (canOpenCommunity) {
-    commands.push({
-      id: "community",
-      sectionId: "app",
-      titleId: "quickPick.command.community",
-      icon: "community",
-      keywords: ["community", "users", "chat", "用户社群", "社群"],
-      run: handlers.openCommunity,
-    });
-  }
-
-  commands.push({
-    id: "product-docs",
-    sectionId: "app",
-    titleId: "quickPick.command.productDocs",
-    icon: "book",
-    keywords: ["docs", "documentation", "product docs", "文档", "产品文档"],
-    run: handlers.openProductDocs,
-  });
+  // 定制版不提供官方渠道命令（问题上报 / 用户社群 / 产品文档），
+  // 见 specs/remove-official-channel-entries.md。
 
   if (isLoggedIn && handlers.logout) {
     commands.push({

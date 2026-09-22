@@ -15,7 +15,6 @@ import { WebCallbackPage } from "./auth/WebCallbackPage.js";
 import { createWebAuthService } from "./auth/webAuthService.js";
 import { WEB_ZAI_OAUTH_CONFIG, resolveWebAuthDevReturnTo } from "./auth/webZaiOAuthConfig.js";
 import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
-import { resolveWebCommunityUrl, resolveWebHelpConfig } from "./communityUrl.js";
 import {
   ConversationShareLandingLoader,
   ConversationShareLandingStatus,
@@ -30,6 +29,7 @@ import {
 } from "./share/conversationShareRoute.js";
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
+import { resolveWebHelpConfig } from "./communityUrl.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
   const saved = localStorage.getItem("zcode-theme");
@@ -239,18 +239,6 @@ function createWebPlatform(): IPlatformService {
         return;
       }
       window.open(feedbackUrl, "_blank", "noopener,noreferrer");
-    },
-    openCommunity: async () => {
-      const locale = document.documentElement.lang === "en-US" ? "en-US" : "zh-CN";
-      const communityUrl = await resolveWebCommunityUrl(locale);
-      if (!communityUrl) {
-        return;
-      }
-      window.open(communityUrl, "_blank", "noopener,noreferrer");
-    },
-    canOpenCommunity: async (locale) => {
-      const communityUrl = await resolveWebCommunityUrl(locale);
-      return typeof communityUrl === "string" && communityUrl.length > 0;
     },
     openInFileManager: () =>
       Promise.resolve({ success: false, error: "Not supported in web mode" }),
