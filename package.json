@@ -1,6 +1,6 @@
 {
   "name": "zcode",
-  "version": "3.18.0",
+  "version": "3.18.1",
   "private": true,
   "description": "NextCode —— 基于 ZCode 开源版（commit 872ad96）改造的 AI 编程工作台内部定制版，沿用 Apache-2.0 许可。",
   "license": "Apache-2.0",
