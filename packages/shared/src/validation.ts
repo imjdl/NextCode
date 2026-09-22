@@ -1175,6 +1175,9 @@ export const zcodeTaskMetaSchema = z.object({
   offPeakTaskId: nonEmptyStringSchema.optional(),
   unreadAt: z.number().int().nonnegative().optional(),
   status: zcodeTaskPersistStatusSchema.optional(),
+  // 跨端运行心跳（specs/web-mobile-cross-process-sync.md）：驱动进程 turn 进行中周期 touch，
+  // 终态清除；消费端只在新鲜窗口内把它当作"仍在运行"的证据。
+  runtimeHeartbeatAt: z.number().int().nonnegative().optional(),
   lastError: z
     .object({
       code: z.string().optional(),

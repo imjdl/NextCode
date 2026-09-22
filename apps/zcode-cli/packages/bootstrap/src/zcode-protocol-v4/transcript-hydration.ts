@@ -63,7 +63,7 @@ type PushEvent = (
   sourceTimestampMs?: number,
 ) => void;
 
-type TurnResultForHydration = "success" | "cancelled" | "error_during_execution";
+type TurnResultForHydration = "success" | "cancelled" | "error_during_execution" | "in_progress";
 
 interface AssistantSynthesisState {
   toolCallCount: number;
@@ -179,6 +179,25 @@ function messageEndAtMs(message: MessageWithParts): number | undefined {
   return end;
 }
 
+/**
+ * 进行中 part 的新鲜窗口：写侧（CLI 流式镜像）~1s touch；水合侧只把"新鲜"的
+ * in-flight part 当作"另一进程仍在生成"，过期回落 interrupted 收口（进程崩溃语义）。
+ */
+export const HYDRATION_IN_FLIGHT_FRESH_MS = 10_000;
+
+function isInFlightPartFresh(part: { inFlightUpdatedAt?: number }, now = Date.now()): boolean {
+  return (
+    part.inFlightUpdatedAt !== undefined &&
+    now - part.inFlightUpdatedAt < HYDRATION_IN_FLIGHT_FRESH_MS
+  );
+}
+
+function hasFreshInFlightPart(message: MessageWithParts): boolean {
+  return message.parts.some(
+    (part) => (part.type === "text" || part.type === "reasoning") && isInFlightPartFresh(part),
+  );
+}
+
 function normalizeTurnResult(
   current: TurnResultForHydration,
   next: TurnResultForHydration,
@@ -188,6 +207,10 @@ function normalizeTurnResult(
   }
   if (current === "error_during_execution" || next === "error_during_execution") {
     return "error_during_execution";
+  }
+  // in_progress 只在没有更强终态证据时保留：turn 尾部仍是新鲜进行中 part。
+  if (current === "in_progress" || next === "in_progress") {
+    return "in_progress";
   }
   return "success";
 }
@@ -644,6 +667,11 @@ function synthesizeTextPart(
     },
     turnId,
   );
+  if (isInFlightPartFresh(part)) {
+    // 跨端流式镜像：进行中 part 不发 text_end，行保持 streaming；turn 由
+    // finishTurn 的 in_progress 分支保持打开。
+    return;
+  }
   push(
     SessionEventType.ModelStreaming,
     { kind: "text_end", delta: "", done: false, partId: part.id },
@@ -679,6 +707,10 @@ function synthesizeReasoningPart(
     },
     turnId,
   );
+  if (isInFlightPartFresh(part)) {
+    // 同 text：进行中 reasoning 不收口。
+    return;
+  }
   push(
     SessionEventType.ModelStreaming,
     { kind: "reasoning_end", delta: "", done: false, partId: part.id },
@@ -1183,7 +1215,11 @@ function synthesizeAssistantParts(
       : message.info.role === "assistant" && message.info.time.completed === undefined
         ? // 进程退出可能只持久化 step-start/partial，却没有 assistant error；
           // 旧 cold hydration 默认 success，伪造正常 TurnComplete 并让异常 Worked 被收起。
-          "cancelled"
+          hasFreshInFlightPart(message)
+          ? // 跨端镜像：另一进程仍在生成（进行中 part 心跳新鲜），turn 保持打开，
+            // 不合成 cancelled 收口——对端界面据此显示"生成中"而非「已停止」。
+            "in_progress"
+          : "cancelled"
         : "success";
   let toolCallCount = 0;
   for (const part of message.parts) {
@@ -1649,6 +1685,12 @@ export function synthesizeEventsFromMessages(
     turnStartedAtMs: number;
     turnEndedAtMs: number;
   }): void => {
+    if (input.resultType === "in_progress") {
+      // 跨端镜像的进行中 turn：不合成 ModelComplete/TurnComplete——投影保持
+      // 打开状态（phase=running、末行 streaming），对端呈现"生成中"而非「已停止」。
+      // 新鲜度过期后（驱动进程消失），水合自然回落到 cancelled 收口语义。
+      return;
+    }
     if (input.failure) {
       // provider 首字前失败只持久化在 assistant.info.error，旧 cold 路径
       // 折成 TurnComplete(error_during_execution)，导致 lastError 的 code/message 全丢。

@@ -140,6 +140,8 @@ interface TaskIndexStatePatch {
   unreadAt?: number;
   model?: string;
   status?: ZCodeTaskMeta["status"];
+  // 跨端运行心跳：number = touch，null = 终态清除（见 specs/web-mobile-cross-process-sync.md）。
+  runtimeHeartbeatAt?: number | null;
   lastError?: ZCodeTaskMeta["lastError"];
   target?: ZCodeTaskMeta["target"];
   updatedAt?: number;
@@ -1636,7 +1638,10 @@ export class TaskIndexRepo {
     workspacePath: string;
     workspaceIdentity?: string;
     taskId: string;
-    patch: Pick<TaskIndexStatePatch, "title" | "status" | "lastError" | "target" | "updatedAt">;
+    patch: Pick<
+      TaskIndexStatePatch,
+      "title" | "status" | "runtimeHeartbeatAt" | "lastError" | "target" | "updatedAt"
+    >;
   }): Promise<ZCodeTaskMeta | null> {
     await this.ensureReady();
     return this.enqueueWrite(params, () => {
@@ -1652,6 +1657,11 @@ export class TaskIndexRepo {
         titleOverridden: row.title_overridden === 1,
         updatedAt: params.patch.updatedAt ?? current.updatedAt,
         status: params.patch.status ?? current.status,
+        // 心跳 null = 终态清除；in 操作符区分"未提供"与"显式清空"。
+        runtimeHeartbeatAt:
+          "runtimeHeartbeatAt" in params.patch
+            ? (params.patch.runtimeHeartbeatAt ?? undefined)
+            : current.runtimeHeartbeatAt,
         lastError: "lastError" in params.patch ? params.patch.lastError : current.lastError,
         target: "target" in params.patch ? params.patch.target : current.target,
       };

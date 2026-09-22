@@ -329,6 +329,13 @@ export interface ZCodeTaskMeta {
   unreadAt?: number;
   /** 持久化的任务状态，记录最后一次 prompt 的结果 */
   status?: ZCodeTaskPersistStatus;
+  /**
+   * 运行心跳（epoch ms）：驱动该 session 的进程在 turn 进行中周期性 touch，
+   * 终态时清除。跨端 UI 只有在心跳新鲜（RUNTIME_HEARTBEAT_FRESH_MS 内）时才把
+   * 落盘 status=running 当作"仍在运行"的证据——陈旧心跳保持"不可信"语义，
+   * 防止进程崩溃后历史任务永远转圈。
+   */
+  runtimeHeartbeatAt?: number;
   /** sessions-index 提供的队首阻塞交互摘要，供未打开的后台 task 渲染侧栏状态。 */
   pendingInteraction?: ZCodeTaskPendingInteraction;
   /**
@@ -343,6 +350,21 @@ export interface ZCodeTaskMeta {
   /** zcode-cli /goal 会话目标；null 表示已显式清空。 */
   target?: ZCodeTaskGoal | null;
 }
+/**
+ * 运行心跳新鲜窗口：落盘 runtimeHeartbeatAt 距今小于该值才视作"仍在运行"。
+ * 写侧 touch 间隔（syncer 心跳 3s + CLI 进行中 part 1s）远小于该窗口，
+ * 驱动进程崩溃后最多这么久，另一端的运行标记就会回落。
+ */
+export const RUNTIME_HEARTBEAT_FRESH_MS = 15_000;
+
+/** 落盘心跳是否仍新鲜（无心跳/过期都返回 false，保持旧"不信任落盘 running"语义）。 */
+export function isFreshRuntimeHeartbeat(
+  runtimeHeartbeatAt: number | undefined,
+  now = Date.now(),
+): boolean {
+  return runtimeHeartbeatAt !== undefined && now - runtimeHeartbeatAt < RUNTIME_HEARTBEAT_FRESH_MS;
+}
+
 export interface ZCodeTaskChangeSummary {
   /** 整个任务里涉及过的唯一文件数 */
   fileCount: number;

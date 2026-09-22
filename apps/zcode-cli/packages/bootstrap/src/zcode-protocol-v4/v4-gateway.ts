@@ -480,8 +480,13 @@ const PROJECTION_EVENT_COMMIT_TIMEOUT_MS = 25_000;
 const MAX_TELEMETRY_EVENT_IDS = 2_000;
 /** detached subagent child 终态后无订阅者时，publisher 由低频 tick 释放前的保留时长。 */
 const DETACHED_CHILD_PUBLISHER_GRACE_MS = 120_000;
-/** conversationRefresh 每会话最小间隔：外部写入高频时限制重水合频率（watcher 侧另有全局去抖）。 */
-const V4_CONVERSATION_REFRESH_MIN_INTERVAL_MS = 2_000;
+/**
+ * conversationRefresh 每会话最小间隔：外部写入高频时限制重水合频率（watcher 侧另有全局去抖）。
+ * 跨端流式镜像（进行中 part ~1s 落库）落地后从 2s 收紧到 1s，对端以 ~1–2s 一拍看到增量。
+ */
+const V4_CONVERSATION_REFRESH_MIN_INTERVAL_MS = 1_000;
+/** locallyDrivenTurns 的"死账"阈值：turn 打开但这么久没有任何 live 事件，按驱动侧异常退出处理。 */
+const LOCALLY_DRIVEN_TURN_STALE_MS = 120_000;
 
 class ProjectionEventCommitWaitError extends Error {
   constructor(
@@ -562,6 +567,10 @@ export class ConversationV4Gateway {
   private readonly publishers = new Map<string, ConversationTopicPublisher>();
   /** conversationRefresh 的每会话节流水位；防止 host 侧高频外部写入把 CLI 打成水合循环。 */
   private readonly conversationRefreshLastAt = new Map<string, number>();
+  /** 本进程驱动中的会话（TurnStarted 未收口）：refresh 绝不重水合它们。 */
+  private readonly locallyDrivenTurns = new Set<string>();
+  /** 每会话最近一次 live 事件 ingest 时间；用于异常打开的 turn 判"死"。 */
+  private readonly lastLiveIngestAt = new Map<string, number>();
   /** sessions-index：workspaceId → 列表 publisher（与 conversation 并列，独立 seq/logEpoch）。 */
   private readonly indexPublishers = new SessionsIndexPublisherRegistry();
   /** workspace-config：workspaceId → 配置目录 publisher（conflated 整体替换态）。 */
@@ -909,6 +918,17 @@ export class ConversationV4Gateway {
   }
 
   private ingestNormalizedEvent(sessionId: string, event: SessionEvent): void {
+    // 跨端 refresh 的本进程活性记账：只有驱动进程自己才能重水合豁免；镜像出
+    // 的 streaming 行（对端驱动）恰恰需要刷新（specs/web-mobile-cross-process-sync.md）。
+    this.lastLiveIngestAt.set(sessionId, Date.now());
+    if (event.type === SessionEventType.TurnStarted) {
+      this.locallyDrivenTurns.add(sessionId);
+    } else if (
+      event.type === SessionEventType.TurnComplete ||
+      event.type === SessionEventType.TurnError
+    ) {
+      this.locallyDrivenTurns.delete(sessionId);
+    }
     const publisher = this.ensurePublisher(sessionId);
     const promotedQueueRemoval =
       event.type === SessionEventType.TurnSteerDiscarded &&
@@ -1469,24 +1489,32 @@ export class ConversationV4Gateway {
     let refreshedCount = 0;
     for (const [sessionId, publisher] of [...this.publishers.entries()]) {
       if (!publisher.hasSubscribers()) continue;
-      // 本进程正在生成（流式行未收口）时跳过：正在写的 turn 由本进程推进，
-      // 强制重读只会与 live buffer 竞争。外部写入的下一次检测会再触发。
-      const snapshot = publisher.getSnapshot();
-      const streaming = snapshot.rows.window.some(
-        (row) =>
-          (row?.kind === "assistantText" && row.state === "streaming") ||
-          (row?.kind === "reasoning" && row.state === "streaming") ||
-          (row?.kind === "toolCall" &&
-            (row.status === "inputStreaming" || row.status === "running")),
-      );
-      if (streaming) continue;
+      // 本进程正在驱动该会话（turn 打开且事件持续 ingest）时跳过：正在写的
+      // turn 由本进程推进，强制重读只会与 live buffer 竞争。旧判据"快照含
+      // streaming 行"在跨端流式镜像落地后失效——水合出的 streaming 行来自对端
+      // 驱动，恰恰是最需要刷新的会话（specs/web-mobile-cross-process-sync.md）。
       const now = this.now();
+      if (this.locallyDrivenTurns.has(sessionId)) {
+        if (now - (this.lastLiveIngestAt.get(sessionId) ?? 0) < LOCALLY_DRIVEN_TURN_STALE_MS) {
+          continue;
+        }
+        // turn 打开却长时间没有任何 live 事件：驱动侧异常退出的兜底，恢复刷新并清账。
+        this.locallyDrivenTurns.delete(sessionId);
+      }
       const lastRefresh = this.conversationRefreshLastAt.get(sessionId) ?? 0;
       if (now - lastRefresh < V4_CONVERSATION_REFRESH_MIN_INTERVAL_MS) continue;
       this.conversationRefreshLastAt.set(sessionId, now);
       this.hydratedSessions.delete(sessionId);
       try {
-        await this.hydratePublisher(sessionId, undefined, true);
+        if (this.hasLiveConversation(sessionId)) {
+          await this.hydratePublisher(sessionId, undefined, true);
+        } else {
+          // 订阅在身但 runtime record 已被驻留池空闲驱逐：直接 force 水合会让
+          // loadPersistedEvents 走"无 record"分支返回空事件，把现有投影清空
+          // （真实 e2e 踩到：完成写后的刷新把整个会话变成空快照）。必须先经
+          // ensureColdReadyPublisher 重建 record（幂等单飞），再做水合重读。
+          await this.ensureColdReadyPublisher(sessionId);
+        }
         refreshedCount += 1;
       } catch (error) {
         this.host.onError?.("v4.conversationRefresh", error, { sessionId });
@@ -2856,6 +2884,9 @@ export class ConversationV4Gateway {
     this.rawSequenceStates.clear();
     this.telemetryEventIds.clear();
     this.detachedLiveSessions.clear();
+    this.locallyDrivenTurns.clear();
+    this.lastLiveIngestAt.clear();
+    this.conversationRefreshLastAt.clear();
     this.detachedChildParent.clear();
     this.detachedChildrenByParent.clear();
     this.detachedTerminalAt.clear();

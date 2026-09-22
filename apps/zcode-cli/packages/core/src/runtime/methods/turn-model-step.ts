@@ -213,6 +213,74 @@ async function runModelBackedTurnStepImpl(
   });
   const networkEventStartIndex = state.events.length;
   let latestStreamSnapshot: RuntimeModelStreamSnapshot = { reasoning: [], text: "" };
+  // ── 跨端流式镜像（specs/web-mobile-cross-process-sync.md）──
+  // text/reasoning 增量只在内存事件里（30ms 帧发给本进程订阅者），落库要等
+  // model step 完成——共享库的另一进程（手机/Web 端服务）重水合时读不到进行中
+  // 正文，只能等整轮结束。这里以 ~1s 节流把已累计内容 upsert 为"进行中 part"
+  // （inFlightUpdatedAt 标记新鲜度）；完成/取消写沿用同一批 part id 覆盖收口，
+  // 不产生重复正文；本进程 live UI 走内存事件，不受这些行影响。
+  const IN_FLIGHT_SNAPSHOT_PERSIST_INTERVAL_MS = 1_000;
+  const inFlightTextPartId = createPartId();
+  const inFlightReasoningPartIds: ReturnType<typeof createPartId>[] = [];
+  let inFlightPersistAllowedAt = 0;
+  let inFlightLastPersistedText = "";
+  let inFlightLastPersistedReasoning = "";
+  const persistInFlightStreamParts = (snapshot: RuntimeModelStreamSnapshot): void => {
+    const now = Date.now();
+    if (now < inFlightPersistAllowedAt) return;
+    const reasoningJoined = snapshot.reasoning.map((block) => block.text).join("\u0000");
+    if (
+      snapshot.text === inFlightLastPersistedText &&
+      reasoningJoined === inFlightLastPersistedReasoning
+    ) {
+      return;
+    }
+    inFlightPersistAllowedAt = now + IN_FLIGHT_SNAPSHOT_PERSIST_INTERVAL_MS;
+    inFlightLastPersistedText = snapshot.text;
+    inFlightLastPersistedReasoning = reasoningJoined;
+    void (async () => {
+      for (let index = 0; index < snapshot.reasoning.length; index += 1) {
+        const block = snapshot.reasoning[index]!;
+        if (!block.text) continue;
+        const partId = inFlightReasoningPartIds[index] ?? createPartId();
+        inFlightReasoningPartIds[index] = partId;
+        await this.persistPart(
+          {
+            id: partId,
+            sessionID: this.sessionId,
+            messageID: assistantMessageId,
+            type: "reasoning",
+            text: block.text,
+            time: { start: modelStartedAt },
+            inFlightUpdatedAt: now,
+          },
+          modelTraceContext,
+        );
+      }
+      if (snapshot.text.length > 0) {
+        await this.persistPart(
+          {
+            id: inFlightTextPartId,
+            sessionID: this.sessionId,
+            messageID: assistantMessageId,
+            type: "text",
+            text: snapshot.text,
+            time: { start: modelStartedAt },
+            inFlightUpdatedAt: now,
+          },
+          modelTraceContext,
+        );
+      }
+    })().catch((error) => {
+      this.logger?.warn("跨端流式镜像落库失败（内容变化时重试）", {
+        ...traceContextToLogContext(modelTraceContext),
+        event: "model.inflight_part.persist_failed",
+        module: "core.runtime",
+        status: "failed",
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    });
+  };
   const streamRecoveryRequest = state.pendingStreamRecoveryRequest;
   state.pendingStreamRecoveryRequest = undefined;
   let latestModelRequestId: string | undefined;
@@ -251,6 +319,7 @@ async function runModelBackedTurnStepImpl(
       model,
       onStreamSnapshot: (snapshot) => {
         latestStreamSnapshot = snapshot;
+        persistInFlightStreamParts(snapshot);
       },
       onModelNetworkStatus: recordModelNetworkStatus,
       onStreamReasoningDelta: (text) => streamingToolCoordinator.recordReasoningDelta(text),
@@ -374,6 +443,10 @@ async function runModelBackedTurnStepImpl(
         assistantMessageId,
         snapshot: latestStreamSnapshot,
         traceContext: modelTraceContext,
+        inFlightPartIds: {
+          textPartId: inFlightTextPartId,
+          reasoningPartIds: inFlightReasoningPartIds,
+        },
       });
       const reasoning = latestStreamSnapshot.reasoning.filter(hasAssistantReasoningContent);
       if (latestStreamSnapshot.text.length > 0 || reasoning.length > 0) {
@@ -548,11 +621,14 @@ async function runModelBackedTurnStepImpl(
   // AI SDK 可能把非标准 output-limit 归一化为 other；Runtime 已确认恢复语义后，
   // live 事件与持久化必须统一使用 length，同时由上方 diagnostics 保留 provider 原始事实。
   if (outputTokenContinuation !== "none") result.finishReason = "length";
-  for (const reasoning of result.reasoning ?? []) {
+  const finalReasonings = result.reasoning ?? [];
+  for (let reasoningIndex = 0; reasoningIndex < finalReasonings.length; reasoningIndex += 1) {
+    const reasoning = finalReasonings[reasoningIndex]!;
     if (!hasAssistantReasoningContent(reasoning)) continue;
     await this.persistPart(
       {
-        id: createPartId(),
+        // 复用流式镜像写过的 part id：完成写覆盖进行中行，不产生重复正文。
+        id: inFlightReasoningPartIds[reasoningIndex] ?? createPartId(),
         sessionID: this.sessionId,
         messageID: assistantMessageId,
         type: "reasoning",
@@ -569,7 +645,8 @@ async function runModelBackedTurnStepImpl(
   if (state.modelResponse.length > 0) {
     await this.persistPart(
       {
-        id: createPartId(),
+        // 同上：覆盖流式镜像的进行中 text part。
+        id: inFlightTextPartId,
         sessionID: this.sessionId,
         messageID: assistantMessageId,
         type: "text",

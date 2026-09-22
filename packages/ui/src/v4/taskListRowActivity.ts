@@ -1,3 +1,4 @@
+import { isFreshRuntimeHeartbeat } from "@zcode/shared";
 import type { ZCodeTaskMeta } from "@zcode/shared";
 import type {
   PendingInteractionSummary,
@@ -37,10 +38,17 @@ export function getTaskListRowActivity(task: ZCodeTaskMeta): TaskListRowActivity
   return activity ?? null;
 }
 
-/** 只采信 sessions-index 的实时 phase；tasks-index 残留 status=running 不能置顶历史任务。 */
+/**
+ * 运行判定：sessions-index 的实时 phase 优先；跨端场景下"另一进程正在跑的会话"
+ * （本进程没有它的 live phase）以新鲜心跳为准（specs/web-mobile-cross-process-sync.md）。
+ * 陈旧的落盘 running 依旧不可信，历史任务不会因残留 status=running 被置顶或转圈。
+ */
 function isTaskListRowRunning(task: ZCodeTaskMeta): boolean {
   const phase = getTaskListRowActivity(task)?.phase;
-  return phase === "prewarming" || phase === "running";
+  if (phase === "prewarming" || phase === "running") {
+    return true;
+  }
+  return isFreshRuntimeHeartbeat(task.runtimeHeartbeatAt);
 }
 
 /**

@@ -345,6 +345,84 @@ export function createZCodeTaskIndexSyncer(
     });
   }
 
+  // ── 跨端运行心跳（specs/web-mobile-cross-process-sync.md）──
+  // 本进程驱动中的会话把 status=running + 心跳时间写进共享 tasks-index；另一进程
+  // 的 data_version watcher 触发列表重拉后，UI 以"新鲜心跳"（RUNTIME_HEARTBEAT_FRESH_MS）
+  // 为据显示运行动画。驱动进程崩溃后心跳过期，消费端自动回落，不会永久假转。
+  const RUNTIME_HEARTBEAT_WRITE_INTERVAL_MS = 3_000;
+  const runtimeHeartbeatLastWriteAt = new Map<string, number>();
+  let runtimeHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+  const runtimeHeartbeatKey = (target: ZCodeAgentSessionTarget): string =>
+    `${resolveWorkspaceKey(target)}\u0000${target.sessionId}`;
+
+  const writeRuntimeHeartbeat = (
+    state: WorkspaceIngestState,
+    summary: SessionSummary,
+    now: number,
+  ): void => {
+    const key = runtimeHeartbeatKey(sessionTargetFrom(state.target, summary.sessionId));
+    if (now - (runtimeHeartbeatLastWriteAt.get(key) ?? 0) < RUNTIME_HEARTBEAT_WRITE_INTERVAL_MS) {
+      return;
+    }
+    runtimeHeartbeatLastWriteAt.set(key, now);
+    // 行缺失（新会话首个 turn、resync 尚未建行）返回 null：等下一个 touch 周期重试。
+    void taskIndexRepo
+      .applyAgentPatch({
+        workspacePath: state.target.workspacePath,
+        workspaceIdentity: state.target.workspaceIdentity,
+        taskId: summary.sessionId,
+        patch: { status: "running", runtimeHeartbeatAt: now, updatedAt: now },
+      })
+      .catch((error) => {
+        logger.debug(undefined, "运行心跳写入失败（下个周期重试）", {
+          taskId: summary.sessionId,
+          error,
+        });
+      });
+  };
+
+  const hasRunningSummary = (state: WorkspaceIngestState): boolean => {
+    for (const summary of state.summaries.values()) {
+      if (summary.phase === "running" || summary.phase === "prewarming") return true;
+    }
+    return false;
+  };
+
+  const ensureRuntimeHeartbeatTimer = (): void => {
+    if (runtimeHeartbeatTimer !== null || disposed) return;
+    // sessions-index 帧只在边界事件（turn 开始/工具/标题）fan-out，纯模型流式期间
+    // 没有帧；心跳 touch 靠该低频定时器维持，否则长生成期间对端动画会在新鲜窗口
+    // 过期后熄灭。无运行中会话时停表，避免空闲计时器常驻。
+    runtimeHeartbeatTimer = setInterval(() => {
+      if (disposed) {
+        if (runtimeHeartbeatTimer) clearInterval(runtimeHeartbeatTimer);
+        runtimeHeartbeatTimer = null;
+        return;
+      }
+      const now = Date.now();
+      let anyRunning = false;
+      for (const state of workspaceIngests.values()) {
+        if (!hasRunningSummary(state)) continue;
+        anyRunning = true;
+        for (const summary of state.summaries.values()) {
+          if (summary.phase !== "running" && summary.phase !== "prewarming") continue;
+          writeRuntimeHeartbeat(state, summary, now);
+        }
+      }
+      if (!anyRunning && runtimeHeartbeatTimer) {
+        clearInterval(runtimeHeartbeatTimer);
+        runtimeHeartbeatTimer = null;
+      }
+    }, RUNTIME_HEARTBEAT_WRITE_INTERVAL_MS);
+  };
+
+  const maybeRuntimeHeartbeat = (state: WorkspaceIngestState, summary: SessionSummary): void => {
+    if (summary.phase !== "running" && summary.phase !== "prewarming") return;
+    writeRuntimeHeartbeat(state, summary, Date.now());
+    ensureRuntimeHeartbeatTimer();
+  };
+
   const indexTopicFor = (state: WorkspaceIngestState) =>
     sessionsIndexTopic(resolveWorkspaceKey(state.target));
   const configTopicFor = (state: WorkspaceIngestState) =>
@@ -620,6 +698,8 @@ export function createZCodeTaskIndexSyncer(
       unreadSignal: unreadSignal ?? null,
     });
     const updatedAt = Date.now();
+    // 终态清除心跳：另一端经 watcher 重拉后立即脱离"运行中"。
+    runtimeHeartbeatLastWriteAt.delete(runtimeHeartbeatKey(target));
     void taskIndexRepo
       .applyAgentPatch({
         workspacePath: target.workspacePath,
@@ -628,8 +708,8 @@ export function createZCodeTaskIndexSyncer(
         // error 的 lastError 详情不在 sessions-index 摘要里，留给随后的回源 snapshot
         // 写权威值（patch 不带 lastError 键 = 保留现值）；completed 沿旧语义清空。
         patch: failed
-          ? { status: "error", updatedAt }
-          : { status: "completed", lastError: undefined, updatedAt },
+          ? { status: "error", runtimeHeartbeatAt: null, updatedAt }
+          : { status: "completed", lastError: undefined, runtimeHeartbeatAt: null, updatedAt },
       })
       .then((meta) => {
         if (meta) {
@@ -711,6 +791,7 @@ export function createZCodeTaskIndexSyncer(
     if (next.phase === "draft") {
       return;
     }
+    maybeRuntimeHeartbeat(state, next);
     const target = sessionTargetFrom(state.target, next.sessionId);
     const becameVisibleTask = previous === undefined || previous.phase === "draft";
     // 终态迁移 = 基线里真实观察到非终态 → 终态。无基线的会话（冷恢复 hydration、
@@ -1821,6 +1902,9 @@ export function createZCodeTaskIndexSyncer(
 
     disposeAll(): void {
       disposed = true;
+      if (runtimeHeartbeatTimer) clearInterval(runtimeHeartbeatTimer);
+      runtimeHeartbeatTimer = null;
+      runtimeHeartbeatLastWriteAt.clear();
       for (const state of workspaceIngests.values()) {
         state.indexSubscriptionGeneration += 1;
         state.configSubscriptionGeneration += 1;

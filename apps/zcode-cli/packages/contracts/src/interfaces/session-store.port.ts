@@ -430,6 +430,12 @@ export interface TextPart {
     end?: number;
   };
   metadata?: Record<string, unknown>;
+  /**
+   * 跨端流式镜像（specs/web-mobile-cross-process-sync.md）：流式期间由 CLI 以 ~1s
+   * 节流 upsert 的"进行中"标记（epoch ms）。完成/取消写会去掉该字段；水合侧只把
+   * "新鲜"的 in-flight part 投影为 streaming 行，过期回落 interrupted 收口语义。
+   */
+  inFlightUpdatedAt?: number;
 }
 
 export interface ReasoningPart {
@@ -443,6 +449,8 @@ export interface ReasoningPart {
     start: number;
     end?: number;
   };
+  /** 见 TextPart.inFlightUpdatedAt：跨端流式镜像的"进行中"标记。 */
+  inFlightUpdatedAt?: number;
 }
 
 export type FilePartSource =

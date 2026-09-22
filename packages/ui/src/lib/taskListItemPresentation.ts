@@ -1,3 +1,4 @@
+import { isFreshRuntimeHeartbeat } from "@zcode/shared";
 import type { ZCodeTaskMeta } from "@zcode/shared";
 import type { TaskListRowActivity } from "@/v4/taskListRowActivity.js";
 
@@ -25,8 +26,14 @@ export function deriveTaskLeadingIndicator(
     return "loading";
   }
 
-  // persisted status=running 只说明上次落盘时还没收到终态，不代表新进 app 后仍在实时运行。
-  // loading 必须由当前 runtime 明确证明，否则历史列表会把上次未完成的 task 一直显示成转圈。
+  // 跨端心跳（specs/web-mobile-cross-process-sync.md）：本进程 sessions-index 对
+  // "另一进程正在跑的会话"只有缺省完成态种子；驱动进程写入的新鲜心跳
+  // （RUNTIME_HEARTBEAT_FRESH_MS 内）是"仍在运行"的落盘证据，同样转圈。
+  // 陈旧心跳依旧不采信——历史列表不会把上次未完成的 task 一直显示成转圈。
+  if (isFreshRuntimeHeartbeat(task.runtimeHeartbeatAt)) {
+    return "loading";
+  }
+
   return "none";
 }
 
