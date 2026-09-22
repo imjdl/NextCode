@@ -95,6 +95,7 @@ import type {
   V4ConversationWorkflowRunWorkspaceResult,
   V4ConversationWorkflowRunsResult,
   V4ConversationRowsRangeResult,
+  V4ConversationRefreshResult,
   V4ConversationResyncResult,
   V4ConversationSubscribeResult,
   V4SessionsIndexSubscribeResult,
@@ -737,6 +738,12 @@ export interface IZCodeAgentService {
   resyncConversationV4(
     params: ZCodeAgentConversationResyncParams,
   ): Promise<V4ConversationResyncResult>;
+  /**
+   * 跨端会话内容同步（specs/web-mobile-cross-process-sync.md）：对所有已活跃 runtime 的
+   * CLI 发起"按持久化重水合"请求——CLI 只重水合"有订阅者、非流式、未节流"的会话，
+   * 新快照由 hydration 尾部推给现有订阅者。桌面窗口 Host 不调用（自己就是写者）。
+   */
+  refreshConversationsFromPersistenceV4(): Promise<V4ConversationRefreshResult>;
   unsubscribeConversationV4(params: ZCodeAgentConversationUnsubscribeParams): Promise<void>;
   /** rows/range 行分页 query（loadOlder 游标向上补历史）。 */
   conversationRowsRangeV4(

@@ -268,6 +268,7 @@ import {
   v4ConversationWorkflowRunNodeResultResultSchema,
   v4ConversationWorkflowRunWorkspaceResultSchema,
   v4ConversationWorkflowRunsResultSchema,
+  v4ConversationRefreshResultSchema,
   v4ConversationResyncResultSchema,
   v4ConversationSubscribeResultSchema,
   v4ConversationUsageResultSchema,
@@ -281,6 +282,7 @@ import {
   ZCodeAttachmentFaultError,
   type CommandAck,
   type ConversationTopicWireCandidate,
+  type V4ConversationRefreshResult,
   type ConversationTelemetryFact,
   type SessionsIndexTopicWireCandidate,
   type WorkspaceConfigTopicWireCandidate,
@@ -5021,6 +5023,30 @@ export function createZCodeAgentService(
 
     async resyncConversationV4(params: ZCodeAgentConversationResyncParams) {
       return resyncV4Route(params, "conversation/");
+    },
+
+    async refreshConversationsFromPersistenceV4(): Promise<V4ConversationRefreshResult> {
+      // 跨端会话内容同步（specs/web-mobile-cross-process-sync.md）：对每个已活跃 runtime
+      // 各发一次全量 refresh。CLI 侧自行筛选（有订阅者/非流式/节流），单个 runtime
+      // 失败不阻断其余——refresh 是尽力收敛，不是必须成功的命令。
+      let refreshedCount = 0;
+      for (const entry of Array.from(activeClientsByWorkspaceKey.values())) {
+        try {
+          const result = await entry.client.request(
+            V4_METHODS.conversationRefresh,
+            {},
+            v4ConversationRefreshResultSchema,
+          );
+          refreshedCount += result.ack.refreshedCount;
+        } catch (error) {
+          logger.warn(
+            undefined,
+            "conversationRefresh 下发失败（runtime 可能正在重启，下次外部变化会重试）",
+            error,
+          );
+        }
+      }
+      return { refreshedCount };
     },
 
     async sendConversationCommandV4(params: ZCodeAgentConversationCommandParams) {

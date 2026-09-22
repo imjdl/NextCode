@@ -9,7 +9,7 @@ import {
   NodeModelSelectionConfigRepository,
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
 } from "@zcode/provider-node";
-import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
+import { getAppConfigDir as resolveAppConfigDir, getSessionStoreDatabasePath } from "./paths.js";
 import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
@@ -347,6 +347,7 @@ import { resolveZCodeAgentPresentationSurface } from "./zcode-agent/zcodeAgentPr
 import { createZCodeTaskServiceAdapter } from "./zcode-agent/zcodeTaskServiceAdapter.js";
 import { createZCodeSessionService } from "./zcode-session/zcodeSessionService.js";
 import { createZCodeTaskIndexSyncer } from "./zcode-agent/zcodeTaskIndexSyncer.js";
+import { createSharedSqliteChangeWatcher } from "./zcode-agent/sharedSqliteChangeWatcher.js";
 import { TaskIndexRepo } from "./session/taskIndexRepo.js";
 import type { SessionMessageSendRequested } from "#src/session/sessionMailbox.js";
 import { createFileWatcherService } from "./fileWatcher/fileWatcherService.js";
@@ -1294,6 +1295,18 @@ export function createLocalServices(options: {
     Omit<CreateFeedbackServiceOptions, "apiClient" | "credentialService" | "oauthService">
   >;
   processLifecycleReporter?: RuntimeProcessLifecycleReporter;
+  /**
+   * 跨进程任务索引刷新（仅 Web 服务进程启用）：把桌面窗口 Host 写入共享 tasks-index.sqlite
+   * 的变更翻译成本进程的 workspace_task_list_changed 广播。见
+   * specs/web-mobile-cross-process-sync.md。
+   */
+  crossProcessTaskIndexRefresh?: boolean;
+  /**
+   * 跨进程会话内容刷新（仅 Web 服务进程启用）：检测共享会话库（cli/db/db.sqlite）被
+   * 桌面窗口 Host 写入后，对活跃 runtime 发起 v4/conversation/refresh——CLI 对有订阅者、
+   * 非流式的会话重读持久化并把新快照推给订阅者。见 specs/web-mobile-cross-process-sync.md。
+   */
+  crossProcessConversationRefresh?: boolean;
   taskRuntimeReporter?: RuntimeTaskReporter;
   /** workspace 文件搜索默认使用内置过滤器；后续规则来源只需在 Host 装配时注入最终实现。 */
   workspaceFileSearchFilter?: WorkspaceFileSearchFilter;
@@ -2273,7 +2286,42 @@ export function createLocalServices(options: {
   const zcodeTaskIndexSyncer = createZCodeTaskIndexSyncer({
     agentService: zcodeAgentService,
     taskIndexRepo,
+    ...(options.crossProcessTaskIndexRefresh ? { crossProcessTaskIndexRefresh: true } : {}),
   });
+  // 跨端会话内容同步（specs/web-mobile-cross-process-sync.md，仅 Web 服务进程启用）：
+  // 桌面窗口 Host 写共享会话库 → 去抖后对活跃 runtime 发 v4/conversation/refresh，
+  // CLI 重读持久化并把新快照推给现有订阅者。CLI 侧另有每会话 2s 节流兜底。
+  if (options.crossProcessConversationRefresh) {
+    let conversationRefreshInFlight = false;
+    let conversationRefreshQueued = false;
+    const drainConversationRefresh = () => {
+      if (conversationRefreshInFlight) {
+        conversationRefreshQueued = true;
+        return;
+      }
+      conversationRefreshInFlight = true;
+      void zcodeAgentService
+        .refreshConversationsFromPersistenceV4()
+        .catch((error: unknown) => {
+          createServiceLogger("cross-process-conversation-refresh").warn(
+            undefined,
+            "conversationRefresh 失败（下次外部写入会重试）",
+            error,
+          );
+        })
+        .finally(() => {
+          conversationRefreshInFlight = false;
+          if (conversationRefreshQueued) {
+            conversationRefreshQueued = false;
+            drainConversationRefresh();
+          }
+        });
+    };
+    createSharedSqliteChangeWatcher({
+      databasePath: getSessionStoreDatabasePath(),
+      onExternalChange: drainConversationRefresh,
+    });
+  }
   // The plugin can be toggled at runtime. Do not let a previously created resolver continue
   // health-checking/restarting Helper after disable, and create it lazily after enable.
   // 动态 resolver：isPluginEnabled 与 helper 创建用同一个 isCuaEnabledForContext 门控（dev mode 一致），

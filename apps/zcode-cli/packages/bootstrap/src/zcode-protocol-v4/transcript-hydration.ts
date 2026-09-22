@@ -158,7 +158,7 @@ function partEndAtMs(part: MessagePart): number | undefined {
   if (part.type === "reasoning") {
     return finiteTimeMs(part.time?.end) ?? finiteTimeMs(part.time?.start);
   }
-  if (part.type === "tool" && "time" in part.state) {
+  if (part.type === "tool" && part.state != null && "time" in part.state) {
     return intervalEndOrStartMs(part.state.time);
   }
   return undefined;
@@ -731,6 +731,12 @@ function synthesizeToolPart(
   if (shouldHideInvalidToolCallFromProduct(part.tool, part.metadata)) {
     // footprint 过滤只决定是否需要补事件，不能阻止实际合成；这里必须在事件源头
     // 跳过带原始空名 metadata 的恢复 part，避免 cold hydration 重新物化工具行。
+    return { resultType: "success", toolCallCount: 0 };
+  }
+  // 历史库里存在 state 缺失的 tool part 行（跨端会话刷新在真实库上首次踩到：
+  // part.state.input 直接 TypeError，导致整个会话的水合失败、另一端永远看不到
+  // 后续内容）。坏行按"无事件"跳过——与上方无效工具调用的源头跳过同一语义。
+  if (part.state == null || typeof part.state !== "object") {
     return { resultType: "success", toolCallCount: 0 };
   }
   const toolCallId = part.callID;

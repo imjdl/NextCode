@@ -618,6 +618,23 @@ export function useWorkspaceTaskLists(params: {
     void refresh();
   }, [pendingConfigs.length, refresh, refreshTrigger, requestSignature]);
 
+  // 兜底：页面从后台切回可见时重拉一次。Web/手机端与桌面窗口 Host 是两个进程，
+  // 服务端虽有跨进程刷新广播（specs/web-mobile-cross-process-sync.md），但服务重启等
+  // 空窗期内事件会丢；手机浏览器后台冻结定时器，切回时主动拉新是最直接的恢复路径。
+  // 桌面端已有实时事件，这里最多多一次廉价查询。
+  const lastVisibilityRefreshRef = useRef(0);
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastVisibilityRefreshRef.current < 3_000) return;
+      lastVisibilityRefreshRef.current = now;
+      setRefreshTrigger((version) => version + 1);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
   // sessions-index 列表变化 / pin-archive 归属版本变化 → 标脏本地 scope 缓存，
   // 触发上面的 refresh 用新数据重算。sessions-index 是 conflated 低频列表事件，非高频 snapshot。
   // 防环：cache 标脏会引发 re-render，若父组件每次渲染重建 workspaceTabs 数组，

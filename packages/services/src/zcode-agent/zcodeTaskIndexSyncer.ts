@@ -38,6 +38,11 @@ import {
 import { Emitter, type Event, type IDisposable } from "@zcode/rpc";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
+import { getTasksIndexDatabasePath } from "#src/paths.js";
+import {
+  createSharedSqliteChangeWatcher,
+  type SharedSqliteChangeWatcher,
+} from "./sharedSqliteChangeWatcher.js";
 import type { ZCodeWorkspaceEventSubscriptionParams } from "#src/session/zcodeTaskListTypes.js";
 import type {
   IZCodeAgentService,
@@ -174,6 +179,13 @@ export interface ZCodeTaskIndexSyncer {
 interface CreateZCodeTaskIndexSyncerOptions {
   agentService: IZCodeAgentService;
   taskIndexRepo: TaskIndexRepo;
+  /**
+   * 跨进程任务索引刷新（仅 Web 服务进程启用）：轮询共享 tasks-index.sqlite 的
+   * data_version，把其它进程（桌面窗口 Host）的写入翻译成本进程的
+   * workspace_task_list_changed 广播。桌面窗口 Host 自己有真实事件流，不开启，
+   * 避免重复刷新。规则与背景见 specs/web-mobile-cross-process-sync.md。
+   */
+  crossProcessTaskIndexRefresh?: boolean;
 }
 
 /** phase 终态集合（sessions-index 的 conflated 最新态里判定迁移用）。 */
@@ -311,9 +323,27 @@ export function createZCodeTaskIndexSyncer(
   // UI 永远收不到 workspace_task_list_changed。把 emitter 上提到 syncer，adapter 改为转发，
   // 让 adapter 路径和 desktop-continuous 路径共用同一份订阅，事件不再分裂。
   const workspaceEmitters = new Map<string, Emitter<ZCodeWorkspaceEvent>>();
+  // emitter key → 创建时的 workspace 参数。跨进程刷新要对每个已有 emitter 广播，
+  // 事件字段需要真实的 workspacePath/identity（string key 情况下退化为 path=key）。
+  const workspaceEmitterTargets = new Map<string, ZCodeAgentWorkspaceTarget>();
   const terminalEventEmitter = new Emitter<ZCodeTaskIndexTerminalEvent>();
   const readyEventEmitter = new Emitter<ZCodeTaskIndexReadyEvent>();
   let disposed = false;
+
+  // 跨进程刷新（仅 Web 服务进程）：共享库里其它进程的写入 → 本进程各 workspace 广播一次
+  // task_meta_changed，渲染层按既有策略重拉 membership（数据直接读共享 SQLite，即为最新）。
+  let crossProcessWatcher: SharedSqliteChangeWatcher | null = null;
+  if (options.crossProcessTaskIndexRefresh) {
+    crossProcessWatcher = createSharedSqliteChangeWatcher({
+      databasePath: getTasksIndexDatabasePath(),
+      onExternalChange: () => {
+        if (disposed) return;
+        for (const target of workspaceEmitterTargets.values()) {
+          emitWorkspaceTaskListChanged(target, undefined, "task_meta_changed");
+        }
+      },
+    });
+  }
 
   const indexTopicFor = (state: WorkspaceIngestState) =>
     sessionsIndexTopic(resolveWorkspaceKey(state.target));
@@ -469,6 +499,17 @@ export function createZCodeTaskIndexSyncer(
     if (!emitter) {
       emitter = new Emitter<ZCodeWorkspaceEvent>();
       workspaceEmitters.set(key, emitter);
+      workspaceEmitterTargets.set(
+        key,
+        typeof workspace === "string"
+          ? { workspacePath: workspace }
+          : {
+              workspacePath: workspace.workspacePath,
+              ...(workspace.workspaceIdentity
+                ? { workspaceIdentity: workspace.workspaceIdentity }
+                : {}),
+            },
+      );
     }
     return emitter;
   }
@@ -1802,10 +1843,13 @@ export function createZCodeTaskIndexSyncer(
         }
       }
       workspaceIngests.clear();
+      crossProcessWatcher?.dispose();
+      crossProcessWatcher = null;
       for (const emitter of workspaceEmitters.values()) {
         emitter.dispose();
       }
       workspaceEmitters.clear();
+      workspaceEmitterTargets.clear();
       terminalEventEmitter.dispose();
       readyEventEmitter.dispose();
       runtimeLifecycleDisposable?.dispose();

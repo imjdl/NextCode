@@ -5,6 +5,7 @@ import {
   v4BackgroundBashOutputParamsSchema,
   type BackgroundBashOutputResult,
 } from "@zcode/shared/zcode-protocol-v4";
+import { type V4ConversationRefreshResult } from "@zcode/shared/zcode-protocol-v4";
 // V4 conversation 网关（host 通道层 CLI 侧）。
 // 职责：per-session ConversationTopicPublisher 注册表 + flushWindowMs 定时调度
 // + v4/command → CommandInbox → 宿主 executor 的收口。
@@ -479,6 +480,8 @@ const PROJECTION_EVENT_COMMIT_TIMEOUT_MS = 25_000;
 const MAX_TELEMETRY_EVENT_IDS = 2_000;
 /** detached subagent child 终态后无订阅者时，publisher 由低频 tick 释放前的保留时长。 */
 const DETACHED_CHILD_PUBLISHER_GRACE_MS = 120_000;
+/** conversationRefresh 每会话最小间隔：外部写入高频时限制重水合频率（watcher 侧另有全局去抖）。 */
+const V4_CONVERSATION_REFRESH_MIN_INTERVAL_MS = 2_000;
 
 class ProjectionEventCommitWaitError extends Error {
   constructor(
@@ -557,6 +560,8 @@ function toShareStatFault(error: unknown): unknown {
 
 export class ConversationV4Gateway {
   private readonly publishers = new Map<string, ConversationTopicPublisher>();
+  /** conversationRefresh 的每会话节流水位；防止 host 侧高频外部写入把 CLI 打成水合循环。 */
+  private readonly conversationRefreshLastAt = new Map<string, number>();
   /** sessions-index：workspaceId → 列表 publisher（与 conversation 并列，独立 seq/logEpoch）。 */
   private readonly indexPublishers = new SessionsIndexPublisherRegistry();
   /** workspace-config：workspaceId → 配置目录 publisher（conflated 整体替换态）。 */
@@ -1452,6 +1457,42 @@ export class ConversationV4Gateway {
       timer: null,
     });
     return dispatch;
+  }
+
+  /**
+   * v4/conversation/refresh：跨端会话内容同步（specs/web-mobile-cross-process-sync.md）。
+   * Web 服务进程与本 CLI 是独立运行时、共享同一持久化库；桌面窗口 Host 写入的后续内容
+   * 不会进本进程的内存投影。本方法对"有订阅者且本进程无进行中流"的会话强制重新水合
+   * （丢弃内存投影、重读持久化事件），hydration 尾部会把新快照推给现有订阅者。
+   */
+  async refreshConversationsFromPersistence(): Promise<V4ConversationRefreshResult> {
+    let refreshedCount = 0;
+    for (const [sessionId, publisher] of [...this.publishers.entries()]) {
+      if (!publisher.hasSubscribers()) continue;
+      // 本进程正在生成（流式行未收口）时跳过：正在写的 turn 由本进程推进，
+      // 强制重读只会与 live buffer 竞争。外部写入的下一次检测会再触发。
+      const snapshot = publisher.getSnapshot();
+      const streaming = snapshot.rows.window.some(
+        (row) =>
+          (row?.kind === "assistantText" && row.state === "streaming") ||
+          (row?.kind === "reasoning" && row.state === "streaming") ||
+          (row?.kind === "toolCall" &&
+            (row.status === "inputStreaming" || row.status === "running")),
+      );
+      if (streaming) continue;
+      const now = this.now();
+      const lastRefresh = this.conversationRefreshLastAt.get(sessionId) ?? 0;
+      if (now - lastRefresh < V4_CONVERSATION_REFRESH_MIN_INTERVAL_MS) continue;
+      this.conversationRefreshLastAt.set(sessionId, now);
+      this.hydratedSessions.delete(sessionId);
+      try {
+        await this.hydratePublisher(sessionId, undefined, true);
+        refreshedCount += 1;
+      } catch (error) {
+        this.host.onError?.("v4.conversationRefresh", error, { sessionId });
+      }
+    }
+    return { refreshedCount };
   }
 
   /**

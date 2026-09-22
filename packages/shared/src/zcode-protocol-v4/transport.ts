@@ -311,6 +311,8 @@ export const V4_METHODS = {
   controllerUnsubscribe: "v4/controller/unsubscribe",
   conversationSubscribe: "v4/conversation/subscribe",
   conversationResync: "v4/conversation/resync",
+  /** 跨端会话内容同步：host 侧检测到共享会话库外部写入后触发的重新水合（见 conversationRefreshParamsSchema）。 */
+  conversationRefresh: "v4/conversation/refresh",
   conversationUnsubscribe: "v4/conversation/unsubscribe",
   // 行分页 query（rows/range）：只读、无状态、超时重发安全。
   conversationRowsRange: "v4/conversation/rowsRange",
@@ -465,6 +467,31 @@ export const v4ConversationResyncResultSchema = z
   })
   .strict();
 export type V4ConversationResyncResult = z.infer<typeof v4ConversationResyncResultSchema>;
+
+/**
+ * 跨端会话内容同步（specs/web-mobile-cross-process-sync.md）：Web 服务进程检测到共享
+ * 会话库被另一进程（桌面窗口 Host）写入后，对本进程有订阅者的会话发起刷新；
+ * CLI 丢弃内存投影、重新从持久化水合，新快照由 hydration 尾部推给现有订阅者。
+ * 客户端 UI 不直接调用本方法（水合是重活，只能由 host 侧在检测到外部写入后触发）。
+ */
+export const conversationRefreshParamsSchema = z.object({}).strict();
+export type ConversationRefreshParams = z.infer<typeof conversationRefreshParamsSchema>;
+
+// 响应按 CLI server 惯例包一层 ack（与 conversationResync 相同）。
+export const v4ConversationRefreshResultSchema = z
+  .object({
+    ack: z
+      .object({
+        /** 本次实际重水合的会话数（有订阅者、非流式、未触发节流的会话）。 */
+        refreshedCount: z.number().int().nonnegative(),
+      })
+      .strict(),
+  })
+  .strict();
+export type V4ConversationRefreshResult = {
+  /** 本次实际重水合的会话数（有订阅者、非流式、未触发节流的会话）。 */
+  refreshedCount: number;
+};
 
 export const v4ConversationUnsubscribeParamsSchema = z
   .object({

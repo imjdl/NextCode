@@ -187,6 +187,16 @@ export function getTasksIndexDatabasePath(): string {
   return join(getAppConfigDir(), "tasks-index.sqlite");
 }
 
+/**
+ * CLI 会话/消息库。与 CLI 默认配置（contracts config 的 storage.sessionDbPath 默认值）
+ * 完全一致：~/ 展开到 homedir——CLI 不读 ZCODE_DATA_BASE_DIR/ZCODE_HOME，这里也不能读，
+ * 否则 watcher 盯的文件与 CLI 实际写的文件分裂。显式覆盖过 storage.sessionDbPath 的
+ * 环境不在覆盖范围内（定制版不使用该配置项）。
+ */
+export function getSessionStoreDatabasePath(): string {
+  return join(homedir(), ".zcode", "cli", "db", "db.sqlite");
+}
+
 /** workspace 级身份键：远程优先使用 workspaceIdentity，本地回退 workspacePath。 */
 function getWorkspaceKey(workspacePath: string, workspaceIdentity?: string): string {
   return workspaceIdentity?.trim() || workspacePath;

@@ -486,6 +486,13 @@ export class ZCodeProtocolAgentServer {
         }
         return { ack: dispatch.ack };
       }
+      case V4_METHODS.conversationRefresh: {
+        // 跨端会话内容同步：host 侧检测到共享会话库被另一进程写入后触发；
+        // 重水合产生的帧走各订阅自己的 flush 通道（hydration 尾部 emitReservation），
+        // 与本响应无关，保持 ACK-only。
+        const result = await this.requireV4Gateway().refreshConversationsFromPersistence();
+        return { ack: result };
+      }
       case V4_METHODS.conversationResync: {
         // same-sub recovery 与 subscribe 共用确定性 post-response outbox；公共
         // response 仍 strict ACK-only，physical recovery 只能在 ACK line 后发送。
