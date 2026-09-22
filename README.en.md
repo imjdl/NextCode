@@ -51,6 +51,84 @@ product-identity section of BUILD.md for scope and rationale.
 | Web remote control | Built-in panel (QR pairing) plus response security headers (CSP) and mobile layout support                               |
 | Copy               | i18n dead-key tooling keeps the two locale tables in sync                                                                |
 
+## Customization details and capability improvements
+
+> Timeline: 3.14.0 → 3.18.0, starting 2026-09-21. Per-item details, verification notes and lessons are in
+> the customization log of [BUILD.md](BUILD.md); rules and acceptance criteria per change are in
+> [specs/](specs/).
+
+### 1. Brand and identity
+
+- Product name, installer name, appId/AUMID and the Windows/Linux executable names are **NextCode**; UI
+  copy, page titles, the About window, tray tooltip and share pages follow (113 entries per locale).
+  **Improvement:** the installed app and the running process have their own identity instead of looking
+  like an upstream build.
+- Logo and every image switched to the same-style "N" mark (reusing the original Z's stroke weights,
+  slant and rounded junctions): 9 app icon sizes + a 7-size ICO, the installer's 3D box icon, the startup
+  badge, the draft watermark and the README icon.
+  **Improvement:** consistent branding, plus a reproducible generator with a "no leftover glyph" check so
+  a stale Z cannot survive in one corner again.
+- Internal identifiers (`@zcode/*`, `ZCODE_*`, the `zcode` command, `zcode-protocol`, `~/.zcode`) are
+  intentionally unchanged.
+  **Improvement:** compatibility with upstream code and existing user data.
+
+### 2. Removing official channels and external dependencies
+
+- Official auto-update and forced upgrade are disabled (the first custom build was force-upgraded by the
+  official backend; fixed).
+  **Improvement:** the installed custom build cannot be replaced remotely.
+- Telemetry is disabled at compile time; the SDK dependency and 11 related modules were deleted.
+  **Improvement:** no telemetry reporting; main/preload no longer reference the SDK.
+- Remote workspace runtime assets ship inside the installer and resolve locally first.
+  **Improvement:** connecting to remote workspaces works offline / without the official CDN, and the
+  `manifest not found` failure mode is gone.
+- Official channel entries removed: product docs, community, issue report, feature request and check for
+  updates (help menu, command palette, tray menu and the macOS native menu together).
+  **Improvement:** no entry point that would talk to the official backend remains, and the dead code and
+  i18n keys went with them.
+
+### 3. Security and hygiene
+
+- Response security headers for the web service: `nosniff`, `no-referrer` (the QR URL carries a token),
+  `X-Frame-Options: DENY`, a tightened `Permissions-Policy`, and a CSP for HTML (scripts limited to this
+  service plus sha256-hashed inline scripts, WebAssembly compilation allowed, `object-src 'none'`,
+  `frame-ancestors 'none'`).
+  **Improvement:** pages cannot load remote scripts, cannot be framed, and the token cannot leak through
+  Referer — while diff highlighting and Office previews keep working.
+- Dead code and dependency cleanup (9 unreferenced modules plus the ARMS SDK), and a fix for stale
+  `node_modules` leftovers being packed into the installer.
+  **Improvement:** smaller installer (191.3 → 190.1 MiB) without the telemetry SDK.
+- i18n dead-key tooling (`pnpm i18n:dead-keys` / `i18n:prune-dead-keys`).
+  **Improvement:** the copy tables can be verified and pruned (410 keys per locale in the first pass), so
+  new languages do not translate dead strings.
+
+### 4. New and improved capabilities
+
+| Capability               | What it does / what improved                                                                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt enhancement       | A button next to send polishes the current draft with the selected model and replaces it, with cancel and failure states                                         |
+| Sidebar promote & reveal | Activating a project moves it to the top of the list and scrolls it into view, so long project lists no longer require searching                                 |
+| Desktop web remote panel | A phone icon next to the username opens a panel: start/stop the service, choose the LAN IP, show a QR code for phone access; the icon turns green while running  |
+| Mobile / narrow viewport | Sidebar becomes an overlay drawer and starts collapsed, task list uses an opaque background, web entry points adapt; phones no longer get a desktop layout       |
+| Theme system             | New "hacker" theme (black/green with distinguishable semantic hues); theme options come from a single source shared by the settings page and the sidebar menu    |
+| Remote workspaces        | Assets ship with the installer (see above): from "download from the official CDN" to "local first, works offline"                                                |
+| Brand asset generator    | `scripts/generate-brand-assets.mjs` derives every vector and bitmap from parameterized glyph geometry, with size specs and leftover-glyph verification           |
+| Documentation            | README (zh/en) covering origin, license, layout and verification; BUILD.md for the change log and packaging manual; `specs/` for per-change rules and acceptance |
+
+### 5. Fixes
+
+- Sidebar project reveal did nothing (Windows backslashes in `data-testid` were parsed as CSS escapes).
+- Prompt enhancement failed immediately (an in-process `AbortSignal` cannot cross the renderer boundary).
+- Mobile: the phone icon did not reflect service state, and the task-list drawer had a transparent
+  background.
+- SSH remote connect failed with `manifest not found for linux-x64` (packaged builds did not pass the
+  bundled asset directory to remote deployment).
+- The settings theme dropdown did not show the Zai/hacker themes (two hard-coded theme lists, with
+  indistinguishable labels).
+- A missing `'wasm-unsafe-eval'` blocked WebAssembly compilation for diff highlighting and Office previews.
+- The renderer startup badge and About window still showed the old glyph (five inline glyph copies now
+  guarded by a verification step).
+
 ## Entry points
 
 | Entry     | Purpose                                                            | Dev command                    |
