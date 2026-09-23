@@ -236,3 +236,41 @@ watcher 只会制造重复刷新。
 
 仍未证实（需重打安装包后真机）：turn-model-step 在真实模型流中的落库节奏、
 真实浏览器/手机界面的动画与内容呈现、心跳 15s 回落在真崩溃场景的表现。
+
+## 第四阶段：镜像抖动修复（2026-09-23，3.18.2）
+
+用户实测 3.18.1：生成期间对话页"一直抖动"。日志证据：当前会话在自身生成期间
+被**每 ~2 秒整快照重水合一次**（82 秒内 38 次 `hydrate_three_source_merge` warn）。
+
+### 根因（三层叠加）
+
+1. **库级唤醒不分会话**：watcher 的 `PRAGMA data_version` 是整库信号——A 会话的
+   1s 进行中落库会唤醒 refresh 循环里的**所有**有订阅者的会话；空闲会话被拖着
+   每秒 force 重水合并整快照下发。
+2. **整快照 = 整替**：rehydrate 向订阅者推 `kind:"complete"` 帧；UI store 的
+   规约是"snapshot → 整体替换，绝不 merge"（conversationProjectionStore 注释
+   自述）——全部行对象换新引用，React 引用记忆化全灭，整列表每 ~2s 重渲染＝抖动。
+3. **告警刷屏**：每次重水合都产出 `cold_merge.*` 歧义诊断 warn（跨端镜像下为
+   常态伴随事实，不是异常）。
+
+### 修复
+
+| 层 | 改动 |
+| --- | --- |
+| UI（核心） | `preserveSnapshotRowIdentities`：快照整替前按 rowId 深比较，未变行沿用旧对象引用（全未变时连同 rows 容器一起保引用）——重渲染收敛到真正变化的行（流式中的那一行） |
+| store | `SessionStorePort.contentFingerprint?`（可选）：一条标量 SQL 取 part/message 的 max(time_updated)+行数 |
+| gateway | refresh 指纹门控：内容指纹未变的会话跳过重水合（指纹在**成功后**提交，失败轮可重试）；空闲会话不再被其他会话的写入误伤 |
+| 日志 | `cold_merge.memory_boundary_preserved` / `unclassified_event_preserved` 降为 debug（legacy 轮次歧义保留 warn） |
+
+### 验证
+
+- 单测：`preserveSnapshotRowIdentities.test.ts` 5/5（全未变保引用/单行变化只换该行/增删行/首帧原样/嵌套深比较）。
+- e2e（重建 CLI bundle 后复跑）：三阶段原样通过；**新增负例——静置 5 秒收帧数 0**
+  （修复前任何库写入都会让订阅端整页重推快照），证明门控消除空闲抖动源。
+- 门禁：根 typecheck 0 错；contracts/adapters/bootstrap typecheck 0 错；lint 90 警告 0 错误。
+
+### 残余说明
+
+- 生成期间对端仍会 ~1-2s 收到整快照（流式镜像的本意），但 UI 侧行引用保全后
+  重渲染收敛到变化行，不再整列表抖动；若真机仍有可感知抖动，下一刀是让
+  rehydrate 下发 delta 帧而非 complete 帧（.publisher 侧 diff）。

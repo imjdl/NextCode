@@ -427,6 +427,13 @@ export interface V4GatewayHost {
     sessionId: string,
     persistedMessages?: MessageWithParts[],
   ): Promise<PersistedEventsLoadResult>;
+  /**
+   * 会话持久化内容的轻量指纹（跨端 refresh 用）：max(time_updated)+行数等标量拼成的
+   * 字符串。refresh 循环据此跳过"内容未变"的会话——共享库的 data_version 是全局的，
+   * 任何一个会话的写入都会唤醒 watcher，没有指纹门控时所有有订阅者的会话都会被
+   * 无差别重水合（空闲会话被误伤、日志与帧全量抖动）。
+   */
+  getSessionContentFingerprint?(sessionId: string): Promise<string | null>;
   /** 仅用于低频生命周期和恢复裁决；高频 event/stream trace 禁止走生产日志。 */
   onDebug?(message: string): void;
   onError?(scope: string, error: unknown, context?: V4GatewayErrorContext): void;
@@ -567,6 +574,8 @@ export class ConversationV4Gateway {
   private readonly publishers = new Map<string, ConversationTopicPublisher>();
   /** conversationRefresh 的每会话节流水位；防止 host 侧高频外部写入把 CLI 打成水合循环。 */
   private readonly conversationRefreshLastAt = new Map<string, number>();
+  /** 每会话上次 refresh 时的内容指纹；相同则跳过重水合（见 refresh 循环）。 */
+  private readonly conversationRefreshFingerprints = new Map<string, string>();
   /** 本进程驱动中的会话（TurnStarted 未收口）：refresh 绝不重水合它们。 */
   private readonly locallyDrivenTurns = new Set<string>();
   /** 每会话最近一次 live 事件 ingest 时间；用于异常打开的 turn 判"死"。 */
@@ -1503,6 +1512,19 @@ export class ConversationV4Gateway {
       }
       const lastRefresh = this.conversationRefreshLastAt.get(sessionId) ?? 0;
       if (now - lastRefresh < V4_CONVERSATION_REFRESH_MIN_INTERVAL_MS) continue;
+      // 指纹门控：内容未变的会话不重水合。watcher 的 data_version 是库级信号，
+      // A 会话写入会把 B、C 一起唤醒；没有这一层，空闲会话被其他会话的流式
+      // 写入拖着每秒整重建（快照帧+合并告警刷屏，UI 全列表重渲染）。
+      // 指纹在重水合成功后才提交：失败轮不记账，下一轮可重试。
+      const fingerprintHook = this.host.getSessionContentFingerprint;
+      let pendingFingerprint: string | null = null;
+      if (fingerprintHook) {
+        const fingerprint = await fingerprintHook(sessionId).catch(() => null);
+        if (fingerprint !== null) {
+          if (this.conversationRefreshFingerprints.get(sessionId) === fingerprint) continue;
+          pendingFingerprint = fingerprint;
+        }
+      }
       this.conversationRefreshLastAt.set(sessionId, now);
       this.hydratedSessions.delete(sessionId);
       try {
@@ -1514,6 +1536,9 @@ export class ConversationV4Gateway {
           // （真实 e2e 踩到：完成写后的刷新把整个会话变成空快照）。必须先经
           // ensureColdReadyPublisher 重建 record（幂等单飞），再做水合重读。
           await this.ensureColdReadyPublisher(sessionId);
+        }
+        if (pendingFingerprint !== null) {
+          this.conversationRefreshFingerprints.set(sessionId, pendingFingerprint);
         }
         refreshedCount += 1;
       } catch (error) {
@@ -2887,6 +2912,7 @@ export class ConversationV4Gateway {
     this.locallyDrivenTurns.clear();
     this.lastLiveIngestAt.clear();
     this.conversationRefreshLastAt.clear();
+    this.conversationRefreshFingerprints.clear();
     this.detachedChildParent.clear();
     this.detachedChildrenByParent.clear();
     this.detachedTerminalAt.clear();

@@ -1134,6 +1134,12 @@ export interface SessionStorePort {
     messageID: MessageId;
   }): Promise<MessageWithParts | null>;
   messages(input: { sessionID: SessionId }): Promise<MessageWithParts[]>;
+  /**
+   * 会话持久化内容的轻量指纹（跨端 refresh 门控用，specs/web-mobile-cross-process-sync.md）：
+   * part/message 的 max(time_updated) 与行数拼成的字符串。只裁决"内容是否变化"，
+   * 不承载语义；旧宿主可不实现（refresh 退化为无门控）。
+   */
+  contentFingerprint?(input: { sessionID: SessionId }): Promise<string | null>;
   saveSessionEntry?(input: SessionEntryInfo): Promise<void>;
   sessionEntries?(input: {
     sessionID: SessionId;

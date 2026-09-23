@@ -261,6 +261,56 @@ function mergeOlderRows(
 }
 
 /**
+ * 快照整替时的行引用保全：跨端镜像（specs/web-mobile-cross-process-sync.md）会让
+ * 订阅端在生成期间以 ~1–2s 一拍收到整快照帧；若每次都换掉全部行对象，React 的
+ * 引用记忆化全部失效、整列表重渲染，表现为对话页"抖动"。这里按 rowId 深比较，
+ * 内容未变的行沿用旧对象引用，让重渲染收敛到真正变化的行（通常是流式中的那一行）。
+ */
+function shallowDeepEqual(a: unknown, b: unknown, depth = 0): boolean {
+  if (a === b) return true;
+  if (depth > 6 || a === null || b === null || typeof a !== "object" || typeof b !== "object") {
+    return false;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, index) => shallowDeepEqual(item, b[index], depth + 1));
+  }
+  const keysA = Object.keys(a as Record<string, unknown>);
+  const keysB = Object.keys(b as Record<string, unknown>);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every((key) =>
+    shallowDeepEqual(
+      (a as Record<string, unknown>)[key],
+      (b as Record<string, unknown>)[key],
+      depth + 1,
+    ),
+  );
+}
+
+export function preserveSnapshotRowIdentities(
+  previous: ConversationSnapshot | null,
+  next: ConversationSnapshot,
+): ConversationSnapshot {
+  const previousWindow = previous?.rows.window;
+  if (!previousWindow || previousWindow.length === 0) return next;
+  const previousById = new Map(previousWindow.map((row) => [row.rowId, row]));
+  let changed = false;
+  const window = next.rows.window.map((row) => {
+    const existing = previousById.get(row.rowId);
+    if (existing !== undefined && shallowDeepEqual(existing, row)) {
+      return existing;
+    }
+    changed = true;
+    return row;
+  });
+  if (!changed) {
+    // 窗口全部未变：连同 rows 容器一起沿用旧引用，消费 rows.window 的记忆化继续命中。
+    return { ...next, rows: previous.rows };
+  }
+  return { ...next, rows: { ...next.rows, window } };
+}
+
+/**
  * 外部 store（useSyncExternalStore 兼容：subscribe + getState 返回稳定引用）。
  * 生命周期由 SessionDataLayer 管（引用计数 + keep-warm），组件不直接 new。
  */
@@ -652,22 +702,19 @@ export class ConversationProjectionStore {
   ): void {
     if (frame.payload.kind === "snapshot") {
       const hadAppliedBase = this.subscriptionHasAppliedBase;
-      logSubagentProjectionTransition(
-        this.topic,
-        this.state.snapshot,
-        frame.payload.snapshot,
-        "snapshot",
-      );
+      // 跨端镜像的整快照按行保全引用后再整替（见 preserveSnapshotRowIdentities）。
+      const snapshot = preserveSnapshotRowIdentities(this.state.snapshot, frame.payload.snapshot);
+      logSubagentProjectionTransition(this.topic, this.state.snapshot, snapshot, "snapshot");
       // 规则 1：整体替换，扔掉手里的一切换新的。
       this.setState({
-        snapshot: frame.payload.snapshot,
+        snapshot,
         planDirectoryRevision: this.state.planDirectoryRevision + 1,
         // snapshot 整体替换后 real-user query 集合可能已变，终态缓存必须失效。
         turnNavigatorDirectoryRevision: this.state.turnNavigatorDirectoryRevision + 1,
       });
       this.subscriptionHasAppliedBase = true;
-      this.reconcileOptimistic(frame.payload.snapshot);
-      this.reconcileAcceptedInputProjection(frame.payload.snapshot);
+      this.reconcileOptimistic(snapshot);
+      this.reconcileAcceptedInputProjection(snapshot);
       // initial 丢失时，publisher 允许完整 online snapshot 建立首个
       // applied base；其中的持久 transition 可能早于本次订阅，不能冒充实时新事件。
       // 首帧只播种观察基线，后续 online 跃迁才通知 pane。

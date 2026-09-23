@@ -647,6 +647,34 @@ export class SqliteSessionStore
     return messageRepository.messages(this.db, input);
   }
 
+  /**
+   * 跨端 refresh 门控指纹（specs/web-mobile-cross-process-sync.md）：一条标量查询取
+   * part/message 的 max(time_updated) 与行数。库级 data_version 变化不区分会话，
+   * refresh 循环靠它跳过"内容未变"的会话，避免空闲会话被其他会话的写入拖着整重建。
+   */
+  async contentFingerprint(input: { sessionID: SessionId }): Promise<string | null> {
+    try {
+      const row = this.db
+        .prepare(
+          `select
+             (select coalesce(max(time_updated), 0) from part where session_id = ?) as part_max,
+             (select count(*) from part where session_id = ?) as part_count,
+             (select coalesce(max(time_updated), 0) from message where session_id = ?) as msg_max,
+             (select count(*) from message where session_id = ?) as msg_count`,
+        )
+        .get(input.sessionID, input.sessionID, input.sessionID, input.sessionID) as {
+        part_max: number | bigint;
+        part_count: number | bigint;
+        msg_max: number | bigint;
+        msg_count: number | bigint;
+      };
+      return `p${row.part_max}.${row.part_count}/m${row.msg_max}.${row.msg_count}`;
+    } catch {
+      // 读指纹失败不阻断 refresh：返回 null 让调用方退化为无门控。
+      return null;
+    }
+  }
+
   async saveSessionEntry(input: SessionEntryInfo): Promise<void> {
     this.throwBeforeWrite();
     return sessionEntryRepository.saveSessionEntry(this.db, input);

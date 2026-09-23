@@ -1752,6 +1752,12 @@ export function createConversationV4Gateway(
     // 冷订阅不再在 eventStore / transcript 之间 XOR。message/part
     // 是已完成正文权威，session_entry 只补 legacy goal，内存事件只补
     // 未持久 in-flight 和 queue/permission/control 等 ephemeral 状态。
+    // 跨端 refresh 门控：内容指纹由 store 的标量查询提供（specs/web-mobile-cross-process-sync.md）。
+    getSessionContentFingerprint: async (sessionId) => {
+      const store = context.deps.sessionStore;
+      if (!store?.contentFingerprint) return null;
+      return store.contentFingerprint({ sessionID: sessionId as SessionId });
+    },
     loadPersistedEvents: async (sessionId, persistedMessages) => {
       // dwf workflow actor / subagent 这类 detached live child 没有自己的
       // bootstrap record（事件经 ingestDetachedLiveSession 走父 record 的 sink 路由）。
@@ -1866,13 +1872,12 @@ export function createConversationV4Gateway(
           module: "bootstrap.zcode_protocol",
           sessionId,
         };
-        if (
-          diagnostic.code === "cold_merge.ambiguous_legacy_turn_preserved" ||
-          diagnostic.code === "cold_merge.memory_boundary_preserved" ||
-          diagnostic.code === "cold_merge.unclassified_event_preserved"
-        ) {
+        if (diagnostic.code === "cold_merge.ambiguous_legacy_turn_preserved") {
+          // legacy 轮次歧义是真实数据异常，保留 warn。
           context.logger?.warn("v4 hydrate preserved ambiguous cold fact", fields);
         } else {
+          // 跨端镜像让重水合变成秒级常态，memory_boundary/unclassified 属于常规
+          // 合并伴随事实（实测每 ~2s 一条刷屏）；降为 debug，生产日志不再被淹没。
           log?.debug("v4 hydrate merged duplicate cold facts", fields);
         }
       }
