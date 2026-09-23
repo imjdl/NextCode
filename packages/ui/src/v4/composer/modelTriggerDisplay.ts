@@ -38,6 +38,17 @@ export function formatModelChangeLabel(
   return `${modelName}(${intl.formatMessage({ id: planLabelId })})`;
 }
 
+/**
+ * 切换提示的"用户视角等价"判定：起止渲染标签完全相同即视为没有变化。
+ * 背景：provider 档位迁移（如 builtin:bigmodel → builtin:bigmodel-coding-plan）
+ * 模型本体没变，按 provider+model 比对会当成一次切换，但用户看到的是
+ * "GLM-5.3(个人套餐) → GLM-5.3(个人套餐)"式的重复提示——时间线标记行与
+ * toast 都必须抑制（specs/web-mobile-cross-process-sync.md 外的用户反馈）。
+ */
+export function isRedundantModelChangeLabel(fromLabel: string, toLabel: string): boolean {
+  return fromLabel === toLabel;
+}
+
 export function formatProviderModelLabel(
   providerId: string | undefined,
   providerName: string | undefined,

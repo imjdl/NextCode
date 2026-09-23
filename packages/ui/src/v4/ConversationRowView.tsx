@@ -121,7 +121,10 @@ import {
   splitUserInputEpilogue,
 } from "@/v4/ConversationUserInputEpilogue.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
-import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
+import {
+  formatModelChangeLabel,
+  isRedundantModelChangeLabel,
+} from "@/v4/composer/modelTriggerDisplay.js";
 import { formatMessageTimeLabel } from "@/v4/messageTimeLabel.js";
 import { parseConversationShareContext } from "@/lib/conversationShareContext.js";
 
@@ -1801,20 +1804,20 @@ const TimelineMarkerRowView = memo(function TimelineMarkerRowView({
             running: false,
           };
         }
+        const from = formatModelChangeLabel(
+          marker.fromProvider,
+          fromProvider,
+          marker.fromModel,
+          intl,
+        );
+        if (isRedundantModelChangeLabel(from, to)) {
+          // provider 档位迁移（同模型不同 provider 身份）渲染标签完全相同；
+          // 用户视角这是一次"没有变化"的切换，不再显示切换提示行。
+          return null;
+        }
         return {
           icon: MARKER_MODEL_ICON,
-          label: intl.formatMessage(
-            { id: "chat.modelChange.switched" },
-            {
-              from: formatModelChangeLabel(
-                marker.fromProvider,
-                fromProvider,
-                marker.fromModel,
-                intl,
-              ),
-              to,
-            },
-          ),
+          label: intl.formatMessage({ id: "chat.modelChange.switched" }, { from, to }),
           running: false,
         };
       }

@@ -86,7 +86,10 @@ import {
   useDraftConfigControl,
 } from "@/v4/composer/useDraftConfigControl.js";
 import type { ModelSelectionSource } from "@/v4/composer/V4ComposerToolbar.js";
-import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
+import {
+  formatModelChangeLabel,
+  isRedundantModelChangeLabel,
+} from "@/v4/composer/modelTriggerDisplay.js";
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import {
   createComposerSubmissionConfig,
@@ -2331,6 +2334,12 @@ export function SessionPane({
         targetModel.model,
         intl,
       );
+      // 同上（ConversationRowView modelChange 标记）：provider 档位迁移会让
+      // provider+model 比对判为"变化"，但渲染标签完全相同（用户视角没有变化），
+      // toast 不弹（specs 用户反馈：切换到当前已在用的模型不应再提示）。
+      if (isRedundantModelChangeLabel(fromModel, toModel)) {
+        return;
+      }
       toast(intl.formatMessage({ id: "chat.modelChangeNotice.changed" }, { fromModel, toModel }));
     },
     [intl, modelSelectionView, sessionId],
