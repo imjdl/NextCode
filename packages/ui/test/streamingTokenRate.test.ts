@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { AssistantTextRow, ReasoningRow } from "@zcode/shared/zcode-protocol-v4";
+import type {
+  AssistantTextRow,
+  ConversationRow,
+  ReasoningRow,
+} from "@zcode/shared/zcode-protocol-v4";
 
 import {
-  collectStreamingResponseStats,
+  collectActiveTurnTokenStats,
   computeTokenRate,
   estimateTokens,
   TOKEN_RATE_MIN_ELAPSED_MS,
@@ -36,6 +40,17 @@ function reasoningRow(overrides: Partial<ReasoningRow>): ReasoningRow {
   } as ReasoningRow;
 }
 
+function toolRow(overrides: Record<string, unknown>): ConversationRow {
+  return {
+    kind: "toolCall",
+    rowId: 99,
+    turnId: "turn-1",
+    createdAt: 1_500,
+    createdAtSeq: 3,
+    ...overrides,
+  } as unknown as ConversationRow;
+}
+
 describe("estimateTokens", () => {
   it("空文本计 0", () => {
     assert.equal(estimateTokens(""), 0);
@@ -60,73 +75,62 @@ describe("estimateTokens", () => {
   });
 });
 
-describe("collectStreamingResponseStats", () => {
-  it("无 streaming 行返回 null（轮次结束 → 隐藏）", () => {
+describe("collectActiveTurnTokenStats", () => {
+  it("phase 非 running 一律隐藏（轮次结束/draft/prewarming）", () => {
     const rows = [textRow({ state: "complete", text: "done" })];
-    assert.equal(collectStreamingResponseStats(rows), null);
-    assert.equal(collectStreamingResponseStats([]), null);
+    assert.equal(collectActiveTurnTokenStats(rows, "completedSuccess"), null);
+    assert.equal(collectActiveTurnTokenStats(rows, "draft"), null);
+    assert.equal(collectActiveTurnTokenStats(rows, "prewarming"), null);
+    assert.equal(collectActiveTurnTokenStats(rows, null), null);
+    assert.equal(collectActiveTurnTokenStats([], "running"), null);
   });
 
-  it("统计当前 response 的正文与 reasoning，起点取最早 createdAt", () => {
+  it("工具执行间隙（最后行为 toolCall、无流式文本）仍保持统计——回归用例", () => {
     const rows = [
-      textRow({ rowId: 9, text: "user ask", state: "complete", kind: "assistantText" }),
-      reasoningRow({
-        rowId: 10,
-        assistantResponseId: "resp-1",
-        state: "complete",
-        createdAt: 900,
-        text: "thinking",
-      }),
-      textRow({
-        rowId: 11,
-        assistantResponseId: "resp-1",
-        state: "streaming",
-        createdAt: 1_200,
-        text: "answer",
-      }),
+      reasoningRow({ rowId: 1, state: "complete", createdAt: 900, text: "思考过程" }),
+      textRow({ rowId: 2, state: "complete", createdAt: 1_100, text: "先看下文件" }),
+      toolRow({ rowId: 3, turnId: "turn-1" }),
     ];
-    const stats = collectStreamingResponseStats(rows);
+    const stats = collectActiveTurnTokenStats(rows, "running");
     assert.ok(stats);
     assert.equal(stats.startedAt, 900);
-    assert.equal(stats.tokens, estimateTokens("thinking") + estimateTokens("answer"));
+    assert.equal(stats.tokens, estimateTokens("思考过程") + estimateTokens("先看下文件"));
   });
 
-  it("上一个已完成 response 的 token 不累入当前 response", () => {
+  it("同轮跨 model response 的正文/思考 token 累加", () => {
     const rows = [
-      textRow({ rowId: 1, assistantResponseId: "resp-0", state: "complete", text: "old-old-old" }),
-      textRow({ rowId: 2, assistantResponseId: "resp-1", state: "streaming", text: "new" }),
+      textRow({ rowId: 1, assistantResponseId: "resp-0", state: "complete", text: "first" }),
+      toolRow({ rowId: 2, turnId: "turn-1" }),
+      textRow({ rowId: 3, assistantResponseId: "resp-1", state: "streaming", text: "second" }),
     ];
-    const stats = collectStreamingResponseStats(rows);
+    const stats = collectActiveTurnTokenStats(rows, "running");
+    assert.ok(stats);
+    assert.equal(stats.tokens, estimateTokens("first") + estimateTokens("second"));
+  });
+
+  it("上一轮的行不计入当前轮", () => {
+    const rows = [
+      textRow({ rowId: 1, turnId: "turn-0", state: "complete", text: "old-turn-output" }),
+      textRow({ rowId: 2, turnId: "turn-1", state: "streaming", text: "new" }),
+    ];
+    const stats = collectActiveTurnTokenStats(rows, "running");
     assert.ok(stats);
     assert.equal(stats.tokens, estimateTokens("new"));
-    assert.equal(stats.startedAt, 1_000);
   });
 
-  it("旧行缺 assistantResponseId 时退化为所有 streaming 行", () => {
+  it("当前轮尚无正文/思考产出（首轮直接进工具）返回 null", () => {
+    const rows = [toolRow({ rowId: 1, turnId: "turn-1" })];
+    assert.equal(collectActiveTurnTokenStats(rows, "running"), null);
+  });
+
+  it("起点取当前轮最早正文/思考行的 createdAt", () => {
     const rows = [
-      reasoningRow({ rowId: 3, state: "streaming", createdAt: 800, text: "思考中" }),
-      textRow({ rowId: 4, state: "streaming", createdAt: 1_100, text: "partial" }),
+      reasoningRow({ rowId: 1, state: "complete", createdAt: 800, text: "思考" }),
+      textRow({ rowId: 2, state: "streaming", createdAt: 1_200, text: "answer" }),
     ];
-    const stats = collectStreamingResponseStats(rows);
+    const stats = collectActiveTurnTokenStats(rows, "running");
     assert.ok(stats);
     assert.equal(stats.startedAt, 800);
-    assert.equal(stats.tokens, estimateTokens("思考中") + estimateTokens("partial"));
-  });
-
-  it("工具行不参与计数", () => {
-    const toolRow = {
-      kind: "toolCall",
-      rowId: 5,
-      turnId: "turn-1",
-      createdAt: 1_050,
-      createdAtSeq: 5,
-      state: "streaming",
-      text: "should-not-count",
-    } as unknown as AssistantTextRow;
-    const rows = [toolRow, textRow({ rowId: 6, text: "abc" })];
-    const stats = collectStreamingResponseStats(rows);
-    assert.ok(stats);
-    assert.equal(stats.tokens, estimateTokens("abc"));
   });
 });
 

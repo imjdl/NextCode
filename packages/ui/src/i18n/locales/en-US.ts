@@ -166,6 +166,8 @@ const enUS: Record<string, string> = {
   "composer.promptEnhance.tooltip": "Enhance prompt",
   "composer.promptEnhance.staleDraft": "Draft changed while enhancing; left your text untouched",
   "composer.promptEnhance.failed": "Prompt enhancement failed. Please try again.",
+  "composer.promptEnhance.enhancing": "Enhancing prompt… {seconds}s",
+  "composer.promptEnhance.rateResult": "Prompt enhanced · ≈ {tokens} tokens · {rate} token/s",
   "chat.permission.feedback.ariaLabel": "Optional feedback for the model when denying",
   "chat.permission.feedback.placeholder": "Tell the model what to do instead...",
   "offPeak.chatCreated.defaultTitle": "Idle-time task",

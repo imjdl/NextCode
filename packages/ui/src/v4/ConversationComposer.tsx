@@ -20,6 +20,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   type DragEvent,
@@ -171,6 +172,7 @@ import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionC
 import { buildV4ConversationPromptTelemetryExtraDetail } from "@/v4/telemetry/conversationPromptTelemetry.js";
 import { resolveAttachableShareContext } from "@/lib/conversationShareContext.js";
 import { normalizePromptEnhanceOutput } from "@/lib/promptEnhanceOutput.js";
+import { estimateTokens } from "@/v4/streamingTokenRate.js";
 import { toast } from "@/components/ui/toast.js";
 
 const MODEL_SELECTION_LOADING_STATE: ModelSelectionState = { status: "loading" };
@@ -636,6 +638,14 @@ function ConversationComposerImpl({
 
   // ── 提示词增强：用当前草稿/会话模型做一次性改写，替换输入框文本 ──
   const [enhancingPrompt, setEnhancingPrompt] = useState(false);
+  // 增强是一次性 RPC（无流式增量），进行中只能显示计时，完成后按结果文本给出估算速率。
+  const [enhanceProgress, setEnhanceProgress] = useState<
+    | { kind: "running"; startedAt: number }
+    | { kind: "done"; tokens: number; elapsedMs: number }
+    | null
+  >(null);
+  const enhanceDoneTimerRef = useRef<number | null>(null);
+  const [, enhanceTick] = useReducer((value: number) => value + 1, 0);
   const enhanceModelSelection = useMemo(() => {
     const config = telemetryDraftConfig ?? snapshotRef.current?.config ?? draftConfig;
     const selection = config?.modelSelection;
@@ -659,6 +669,8 @@ function ConversationComposerImpl({
       return;
     }
     setEnhancingPrompt(true);
+    const enhanceStartedAt = Date.now();
+    setEnhanceProgress({ kind: "running", startedAt: enhanceStartedAt });
     try {
       const result = await agentService.generateWorkspaceText({
         workspacePath,
@@ -684,13 +696,27 @@ function ConversationComposerImpl({
       if (textRef.current.trim() !== draftText) {
         logger.info("[prompt-enhance] 草稿在等待期间已变更，跳过覆盖");
         toast(intl.formatMessage({ id: "composer.promptEnhance.staleDraft" }));
+        setEnhanceProgress(null);
         return;
       }
       inputApiRef.current?.setText(enhanced);
       updateText(enhanced);
+      setEnhanceProgress({
+        kind: "done",
+        tokens: estimateTokens(enhanced),
+        elapsedMs: Date.now() - enhanceStartedAt,
+      });
+      if (enhanceDoneTimerRef.current !== null) {
+        window.clearTimeout(enhanceDoneTimerRef.current);
+      }
+      enhanceDoneTimerRef.current = window.setTimeout(() => {
+        enhanceDoneTimerRef.current = null;
+        setEnhanceProgress(null);
+      }, 6_000);
     } catch (error) {
       logger.warn("[prompt-enhance] 优化提示词失败", { error });
       toast(intl.formatMessage({ id: "composer.promptEnhance.failed" }));
+      setEnhanceProgress(null);
     } finally {
       setEnhancingPrompt(false);
     }
@@ -703,6 +729,21 @@ function ConversationComposerImpl({
     workspaceIdentity,
     workspacePath,
   ]);
+
+  // 增强进行中每秒推进计时；完成态由上面的 6s 定时器自行消退，卸载时清定时器。
+  useEffect(() => {
+    if (enhanceProgress?.kind !== "running") return undefined;
+    const timer = window.setInterval(enhanceTick, 1_000);
+    return () => window.clearInterval(timer);
+  }, [enhanceProgress?.kind]);
+  useEffect(
+    () => () => {
+      if (enhanceDoneTimerRef.current !== null) {
+        window.clearTimeout(enhanceDoneTimerRef.current);
+      }
+    },
+    [],
+  );
 
   // ── 附件全链路（选择/粘贴/拖拽/画板/预传/门禁）──
   const attachmentsApi = useComposerAttachments({
@@ -2339,6 +2380,35 @@ function ConversationComposerImpl({
             onDismiss={onDismissError}
             onOpenModelSettings={onOpenModelSettings}
           />
+        </div>
+      ) : null}
+      {/* 提示词增强进度：进行中显示计时（一次性 RPC 无流式增量），完成后短暂显示估算速率。 */}
+      {enhanceProgress ? (
+        <div className="mb-1 flex w-full items-center justify-end px-4 max-md:px-2">
+          <div className="flex items-center gap-1.5 text-ui-xs text-foreground-subtle">
+            <SparklesIcon className="size-3.5 shrink-0" aria-hidden />
+            <span>
+              {enhanceProgress.kind === "running"
+                ? intl.formatMessage(
+                    { id: "composer.promptEnhance.enhancing" },
+                    {
+                      seconds: Math.max(
+                        1,
+                        Math.round((Date.now() - enhanceProgress.startedAt) / 1_000),
+                      ).toString(),
+                    },
+                  )
+                : intl.formatMessage(
+                    { id: "composer.promptEnhance.rateResult" },
+                    {
+                      tokens: enhanceProgress.tokens.toLocaleString(),
+                      rate: Math.round(
+                        enhanceProgress.tokens / Math.max(1, enhanceProgress.elapsedMs / 1_000),
+                      ).toLocaleString(),
+                    },
+                  )}
+            </span>
+          </div>
         </div>
       ) : null}
       <div

@@ -3,7 +3,7 @@ import { GaugeIcon } from "lucide-react";
 
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
-import { collectStreamingResponseStats, computeTokenRate } from "@/v4/streamingTokenRate.js";
+import { collectActiveTurnTokenStats, computeTokenRate } from "@/v4/streamingTokenRate.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
 
 /** 流停时仍按时间推进重算（速率为累计平均，停顿会自然拉低读数），空闲不占定时器。 */
@@ -16,7 +16,9 @@ const RATE_TICK_INTERVAL_MS = 1_000;
 export function StreamingTokenRateStrip({ lease }: { lease: SessionLease | null }) {
   const { intl } = useZCodeIntl();
   const snapshot = useConversationProjection(lease).snapshot;
-  const stats = snapshot ? collectStreamingResponseStats(snapshot.rows.window) : null;
+  const stats = snapshot
+    ? collectActiveTurnTokenStats(snapshot.rows.window, snapshot.control.phase)
+    : null;
   const [, tick] = useReducer((value: number) => value + 1, 0);
   const active = stats !== null;
 
@@ -32,7 +34,7 @@ export function StreamingTokenRateStrip({ lease }: { lease: SessionLease | null 
   if (rate === null) return null;
 
   return (
-    <div className="mb-1 flex w-full items-center justify-center px-4 max-md:px-2">
+    <div className="mb-1 flex w-full items-center justify-end px-4 max-md:px-2">
       <div
         className="flex items-center gap-1.5 text-ui-xs text-foreground-subtle"
         title={intl.formatMessage(

@@ -1,4 +1,4 @@
-import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationRow, SessionPhase } from "@zcode/shared/zcode-protocol-v4";
 
 /**
  * 流式回复 token 速率的纯推导。
@@ -32,44 +32,39 @@ export function estimateTokens(text: string): number {
     }
   }
   const estimate = cjk * CJK_TOKENS_PER_CHAR + other / OTHER_CHARS_PER_TOKEN;
-  // 非空文本至少计 1 token，避免首帧 0  token 把速率判成空。
+  // 非空文本至少计 1 token，避免首帧 0 token 把速率判成空。
   return Math.max(1, Math.round(estimate));
 }
 
-export interface StreamingResponseStats {
-  /** 当前 response 首个输出行的 createdAt（epoch ms）。 */
+export interface ActiveTurnTokenStats {
+  /** 当前轮首个正文/思考行的 createdAt（epoch ms）。 */
   startedAt: number;
-  /** 该 response 已产出文本 + reasoning 的 token 估算值。 */
+  /** 当前轮已产出正文 + 思考的 token 估算值（跨 model response 累计）。 */
   tokens: number;
 }
 
 /**
- * 定位「当前正在流式输出的 model response」并统计其速率分子/起点。
- * 返回 null = 当前没有流式输出行（含轮次已结束），展示层据此隐藏。
+ * 统计「当前回复轮次」的速率分子/起点。返回 null = 展示层隐藏：
+ * - phase 不是 running（轮次已结束、draft、prewarming 尚无产出）；
+ * - 当前轮还没有任何正文/思考行（模型首轮直接进工具调用）。
+ *
+ * 统计范围是**整个 turn** 而非单个 model response：工具执行间隙（读文件/执行命令）
+ * 没有流式文本行，但轮次仍在 running，此时保持显示、速率按累计时间自然回落；
+ * 同轮跨 response 的 token 累加（用户语境里的「这条回复」是整个轮次）。
  */
-export function collectStreamingResponseStats(
+export function collectActiveTurnTokenStats(
   rows: readonly ConversationRow[],
-): StreamingResponseStats | null {
-  // 当前 response 以第一个 streaming 输出行的 assistantResponseId 定位；
-  // 旧帧缺 id 时退化为「所有 streaming 行」。
-  let responseId: string | undefined;
-  let hasStreamingRow = false;
-  for (const row of rows) {
-    if ((row.kind === "assistantText" || row.kind === "reasoning") && row.state === "streaming") {
-      responseId = row.assistantResponseId;
-      hasStreamingRow = true;
-      break;
-    }
-  }
-  if (!hasStreamingRow) return null;
-
+  phase: SessionPhase | null | undefined,
+): ActiveTurnTokenStats | null {
+  if (phase !== "running") return null;
+  if (rows.length === 0) return null;
+  // running 期间最新一行必然属于当前活跃轮次（轮次内行按序追加）。
+  const activeTurnId = rows[rows.length - 1]!.turnId;
   let tokens = 0;
   let startedAt = Number.POSITIVE_INFINITY;
   for (const row of rows) {
+    if (row.turnId !== activeTurnId) continue;
     if (row.kind !== "assistantText" && row.kind !== "reasoning") continue;
-    const belongs =
-      responseId === undefined ? row.state === "streaming" : row.assistantResponseId === responseId;
-    if (!belongs) continue;
     tokens += estimateTokens(row.text);
     startedAt = Math.min(startedAt, row.createdAt);
   }
