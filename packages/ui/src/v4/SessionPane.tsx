@@ -17,7 +17,6 @@ import {
 } from "react";
 import { Hand } from "lucide-react";
 import {
-  BUILTIN_MODEL_PROVIDER_IDS,
   buildCustomSupplierKey,
   TID_CHAT_EMPTY,
   TID_V4_SESSION_PANE,
@@ -130,6 +129,7 @@ import { PendingCommandRecoveryBanner } from "@/v4/PendingCommandRecoveryBanner.
 import { WorkspaceHookPendingBanner } from "@/v4/WorkspaceHookPendingBanner.js";
 import { ConversationStatusPanel } from "@/v4/ConversationStatusPanel.js";
 import { SessionSubscriptionErrorPanel } from "@/v4/SessionSubscriptionErrorPanel.js";
+import { StreamingTokenRateStrip } from "@/v4/StreamingTokenRateStrip.js";
 import { ConversationTimeline } from "@/v4/ConversationTimeline.js";
 import { ConversationShareImportNotice } from "@/v4/ConversationShareImportNotice.js";
 import { ConversationShareConfirmationDock } from "@/v4/ConversationShareConfirmationDock.js";
@@ -4512,6 +4512,8 @@ export function SessionPane({
           snapshot={snapshot}
         />
       ) : null}
+      {/* 流式 token 速率条：真值只读自 projection store，与 composer 同源同生命周期。 */}
+      {!readOnly && !isDraft ? <StreamingTokenRateStrip lease={lease} /> : null}
       {composerNode}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (

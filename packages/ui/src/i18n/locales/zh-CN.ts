@@ -4949,6 +4949,8 @@ const zhCN: Record<string, string> = {
   "chat.error.feedbackOpened": "已打开反馈，并自动带上报错现场",
   "chat.error.noAvailableModel": "当前没有可用模型。请开通编程套餐或配置自定义模型。",
   "chat.error.sendFailed": "发送失败，请稍后重试。",
+  "chat.streamingTokenRate": "生成速率 ≈ {rate} token/s",
+  "chat.streamingTokenRate.title": "本条回复已生成约 {tokens} tokens · 用时 {seconds}s",
   "chat.error.modelSettings": "模型设置",
   "chat.error.setModels": "配置",
 
