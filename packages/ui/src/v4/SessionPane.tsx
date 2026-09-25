@@ -4485,6 +4485,10 @@ export function SessionPane({
           admission={snapshot.workspaceHookAdmission}
         />
       ) : null}
+      {/* 会话状态行：真值只读自 projection store。
+          必须排在队列面板**之前**——队列面板用 `-mb-7 pb-7` 把下沿塞进 composer 卡片后面，
+          夹在面板与 composer 之间的内容会被面板的不透明卡面盖住（有队列时状态行被遮盖）。 */}
+      {!readOnly && !isDraft ? <StreamingTokenRateStrip lease={lease} /> : null}
       {sessionId && snapshot ? (
         <ConversationQueuePanel
           key="conversation-queue"
@@ -4512,8 +4516,6 @@ export function SessionPane({
           snapshot={snapshot}
         />
       ) : null}
-      {/* 流式 token 速率条：真值只读自 projection store，与 composer 同源同生命周期。 */}
-      {!readOnly && !isDraft ? <StreamingTokenRateStrip lease={lease} /> : null}
       {composerNode}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
