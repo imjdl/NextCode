@@ -5157,6 +5157,7 @@ const enUS: Record<string, string> = {
   "chat.error.sendFailed": "Failed to send. Try again later.",
   "chat.streamingTokenRate": "≈ {rate} tok/s",
   "chat.streamingTokenRate.title": "≈ {tokens} tokens generated in {seconds}s",
+  "chat.conversation.loading": "Loading conversation…",
   "chat.sessionStatus.turnSteps": "{turns} turn(s) · {steps} step(s)",
   "chat.sessionStatus.contextTokens": "{tokens} tok",
   "chat.sessionStatus.cacheHit": "cache hit {rate}",

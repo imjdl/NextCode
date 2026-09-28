@@ -186,6 +186,12 @@ export function createWebRemoteControl(options: WebRemoteControlOptions) {
         ZCODE_WEB_REMOTE_PORT: String(port),
         ZCODE_WEB_REMOTE_TOKEN: token,
         ZCODE_WEB_REMOTE_STATIC_ROOT: staticRoot,
+        // 服务端把该目录注册为手机端的默认工作区。utilityProcess 未设 cwd 时在
+        // Windows 上继承 C:\WINDOWS\system32，手机端会多出 system32 项目；
+        // 这里下发桌面当前激活工作区，与桌面端表现一致。
+        ...(request.workspacePath?.trim()
+          ? { ZCODE_SERVER_WORKSPACE: request.workspacePath.trim() }
+          : {}),
       },
     });
     child = serverProcess;
@@ -232,11 +238,23 @@ export function createWebRemoteControl(options: WebRemoteControlOptions) {
       }
       child = null;
       options.logger.info("[web-remote] 服务进程已退出", { code });
-      setState({ running: false, token: "", url: "", lastError: `服务已退出（code=${code ?? "null"}）` });
+      setState({
+        running: false,
+        token: "",
+        url: "",
+        lastError: `服务已退出（code=${code ?? "null"}）`,
+      });
     });
 
     options.logger.info("[web-remote] 服务已启动", { host, port });
-    return setState({ running: true, host, port, token, url: buildUrl(host, port, token), lastError: "" });
+    return setState({
+      running: true,
+      host,
+      port,
+      token,
+      url: buildUrl(host, port, token),
+      lastError: "",
+    });
   }
 
   function stop(): WebRemoteState {

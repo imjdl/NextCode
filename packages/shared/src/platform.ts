@@ -524,6 +524,12 @@ export interface WebRemoteState {
 export interface WebRemoteStartRequest {
   host: string;
   port: number;
+  /**
+   * 当前激活工作区路径：作为 Web 服务端注册的默认工作区下发给手机端。
+   * 不传时服务端回退 process.cwd()——桌面 App 拉起的子进程在 Windows 上
+   * 会落在 C:\WINDOWS\system32，手机端因此出现多余的 system32 项目。
+   */
+  workspacePath?: string;
 }
 
 /**

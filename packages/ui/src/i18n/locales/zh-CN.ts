@@ -4953,6 +4953,7 @@ const zhCN: Record<string, string> = {
   "chat.error.sendFailed": "发送失败，请稍后重试。",
   "chat.streamingTokenRate": "≈ {rate} tok/s",
   "chat.streamingTokenRate.title": "本条回复已生成约 {tokens} tokens · 用时 {seconds}s",
+  "chat.conversation.loading": "正在加载会话…",
   "chat.sessionStatus.turnSteps": "{turns} 轮 {steps} 步",
   "chat.sessionStatus.contextTokens": "{tokens} tok",
   "chat.sessionStatus.cacheHit": "缓存命中 {rate}",

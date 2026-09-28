@@ -645,6 +645,9 @@ export async function executeDesktopCommand(options: {
       return await options.webRemoteControl.start({
         host: typeof request?.host === "string" ? request.host : "0.0.0.0",
         port: Number(request?.port) || DEFAULT_WEB_REMOTE_PORT,
+        ...(typeof request?.workspacePath === "string" && request.workspacePath.trim()
+          ? { workspacePath: request.workspacePath }
+          : {}),
       });
     }
     case DesktopCommandIds.WebRemoteStop:

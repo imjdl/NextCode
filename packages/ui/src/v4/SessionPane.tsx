@@ -55,6 +55,7 @@ import type {
   ImportedConversationShare,
 } from "@zcode/services";
 import { toast } from "@/components/ui/toast.js";
+import { Spinner } from "@/components/ui/spinner.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -4752,6 +4753,14 @@ export function SessionPane({
                 isDraft ? (
                   <div data-testid={TID_CHAT_EMPTY} className="w-full">
                     <ConversationDraftEmptyState />
+                  </div>
+                ) : connecting || !timelineSnapshot ? (
+                  // 冷启动（尤其 web/手机端首次打开其它 workspace 的会话）需要现起运行时并
+                  // 水合，数秒内正文区还没有行；此前这里渲染 null，用户看到的就是
+                  // 「点进去内容为空」。必须给出明确的加载态而不是空白。
+                  <div className="flex h-full min-h-40 w-full items-center justify-center gap-2 text-ui-xs text-foreground-subtle">
+                    <Spinner className="size-4 animate-spin" aria-hidden />
+                    <span>{intl.formatMessage({ id: "chat.conversation.loading" })}</span>
                   </div>
                 ) : null
               }

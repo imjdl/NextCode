@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
+import { useTabStore } from "@/store/TabStoreProvider.js";
 
 const DEFAULT_PORT = 3030;
 
@@ -60,6 +61,9 @@ export function WebRemoteControlDialog({
 }) {
   const platform = usePlatform();
   const { intl } = useZCodeIntl();
+  // 手机端的初始工作区跟随桌面当前激活工作区；不传时服务端回退 process.cwd()，
+  // Windows 上桌面拉起的子进程会落在 system32，手机端因此多出 system32 项目。
+  const activeWorkspacePath = useTabStore((state) => state.activeWorkspacePath);
   const [addresses, setAddresses] = useState<WebRemoteAddressInfo[]>([]);
   const [state, setState] = useState<WebRemoteState | null>(null);
   const [host, setHost] = useState("0.0.0.0");
@@ -130,7 +134,13 @@ export function WebRemoteControlDialog({
       try {
         const nextState = await platform.executeDesktopCommand(
           next ? DesktopCommandIds.WebRemoteStart : DesktopCommandIds.WebRemoteStop,
-          next ? { host: host || "0.0.0.0", port: Number(port) || DEFAULT_PORT } : undefined,
+          next
+            ? {
+                host: host || "0.0.0.0",
+                port: Number(port) || DEFAULT_PORT,
+                ...(activeWorkspacePath ? { workspacePath: activeWorkspacePath } : {}),
+              }
+            : undefined,
         );
         if (isWebRemoteState(nextState)) {
           setState(nextState);
@@ -147,7 +157,7 @@ export function WebRemoteControlDialog({
         setBusy(false);
       }
     },
-    [host, onStateChange, platform, port],
+    [activeWorkspacePath, host, onStateChange, platform, port],
   );
 
   const running = state?.running === true;

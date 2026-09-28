@@ -744,6 +744,15 @@ function ConversationComposerImpl({
     },
     [],
   );
+  // Composer 实例跨会话复用（key 固定），增强进度只属于发起它的那个会话：
+  // 切换会话时立即清除，避免倒计时/完成提示泄漏到别的会话。
+  useEffect(() => {
+    setEnhanceProgress(null);
+    if (enhanceDoneTimerRef.current !== null) {
+      window.clearTimeout(enhanceDoneTimerRef.current);
+      enhanceDoneTimerRef.current = null;
+    }
+  }, [sessionId]);
 
   // ── 附件全链路（选择/粘贴/拖拽/画板/预传/门禁）──
   const attachmentsApi = useComposerAttachments({
