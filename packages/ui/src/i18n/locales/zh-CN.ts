@@ -1569,6 +1569,7 @@ const zhCN: Record<string, string> = {
   "settings.themeOption.zai-light": "Zai 浅色",
   "settings.themeOption.zai-dark": "Zai 深色",
   "settings.themeOption.hacker-dark": "黑客",
+  "settings.themeOption.oled-black": "纯黑（OLED）",
   "settings.appearanceTitle": "外观",
   "settings.shortcuts.title": "键盘快捷键",
   "settings.shortcuts.searchPlaceholder": "搜索快捷键",

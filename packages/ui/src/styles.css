@@ -897,6 +897,160 @@ body {
 }
 
 /*
+ * 2026-09 新增五套深色主题（specs/dark-theme-pack.md）：与 zai-dark 同构的完整 token 覆盖，
+ * 全部归属 dark。语义色（error/warning/git/成功/删除）在每套里都保持与底色的可辨对比。
+ * 色板来源：各主题社区标准配色（Dracula / Nord / Tokyo Night / Catppuccin Macchiato）；
+ * 纯黑主题沿用 zai-dark 的中性色相、把表面压到真黑（OLED 省电与最高对比）。
+ */
+
+/* 纯黑（OLED）：真黑底 + 中性灰阶，色相沿用 zai-dark。 */
+.theme-oled-black {
+  --animated-gradient-text-strong: rgba(255, 255, 255, 1);
+  --animated-gradient-text-soft: rgba(255, 255, 255, 0.22);
+  --color-background: #000000;
+  --color-background-win-alt: #101010;
+  --color-background-alt: color-mix(in oklab, var(--color-background-win-alt) 60%, transparent);
+  --color-brand: #ffffff;
+  --color-trajectory-user: #60a5fa;
+  --color-trajectory-assistant: #2dd4bf;
+  --color-trajectory-reasoning: #a78bfa;
+  --color-trajectory-tool-call: #f59e0b;
+  --color-trajectory-tool-result: #38bdf8;
+  --color-workflow-rule: rgba(255, 255, 255, 0.065);
+  --color-workflow-trace: rgba(255, 255, 255, 0.35);
+  --color-workflow-trace-strong: rgba(255, 255, 255, 0.6);
+  --color-accent: #001d3d;
+  --color-find-highlight: #542500;
+  --color-find-highlight-active: #ff8a30;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-hover: rgba(255, 255, 255, 0.14);
+  --color-hover: rgba(255, 255, 255, 0.04);
+  --color-selected: rgba(255, 255, 255, 0.08);
+  --color-header: #0a0a0a;
+  --color-panel: #0a0a0a;
+  --color-sidebar: #000000;
+  --color-surface: rgba(255, 255, 255, 0.04);
+  --color-surface-hover: rgba(255, 255, 255, 0.08);
+  --color-card: #111111;
+  --color-card-selected: var(--color-input);
+  --color-card-border: var(--color-border);
+  --color-popover: #111111;
+  --color-popover-foreground: var(--color-foreground);
+  --color-popover-header: #0a0a0a;
+  --color-popover-border: var(--color-border);
+  --color-input: #111111;
+  --color-input-focused: var(--color-input);
+  --color-input-border: var(--color-border);
+  --color-input-border-hover: var(--color-border-hover);
+  --color-input-border-focused: var(--color-border-hover);
+  --color-terminal-bg: var(--color-background);
+  --color-terminal-fg: var(--color-foreground);
+  --color-terminal-cursor: #f8f8f8;
+  --color-terminal-cursor-accent: #000000;
+  --color-terminal-selection: rgba(64, 153, 255, 0.28);
+  --color-terminal-selection-inactive: rgba(255, 255, 255, 0.08);
+  --color-terminal-black: #1f1f1f;
+  --color-terminal-red: #ff5c5c;
+  --color-terminal-green: #46bf72;
+  --color-terminal-yellow: #ff8a30;
+  --color-terminal-blue: #4099ff;
+  --color-terminal-magenta: #7b5ce5;
+  --color-terminal-cyan: #42c8c8;
+  --color-terminal-white: #adadad;
+  --color-terminal-bright-black: #6a6a6a;
+  --color-terminal-bright-red: #ff9999;
+  --color-terminal-bright-green: #87d9a4;
+  --color-terminal-bright-yellow: #ffb26b;
+  --color-terminal-bright-blue: #80beff;
+  --color-terminal-bright-magenta: #a888f2;
+  --color-terminal-bright-cyan: #8ee5e5;
+  --color-terminal-bright-white: #f8f8f8;
+  --color-usage-chart-1: #4099ff;
+  --color-usage-chart-2: #46bf72;
+  --color-usage-chart-3: #7b5ce5;
+  --color-usage-chart-4: #ff5c5c;
+  --color-usage-chart-5: #ff8a30;
+  --color-usage-chart-6: #42c8c8;
+  --color-context-breakdown-1: #4099ff;
+  --color-context-breakdown-2: #66adff;
+  --color-context-breakdown-3: #80beff;
+  --color-context-breakdown-4: #9dceff;
+  --color-context-breakdown-5: #b9ddff;
+  --color-context-breakdown-6: #d0e8ff;
+  --color-context-breakdown-7: #e4f1ff;
+  --color-usage-heatmap-0: color-mix(in oklab, #4099ff 0%, var(--color-surface));
+  --color-usage-heatmap-1: color-mix(in oklab, #4099ff 24%, var(--color-surface));
+  --color-usage-heatmap-2: color-mix(in oklab, #4099ff 42%, var(--color-surface));
+  --color-usage-heatmap-3: color-mix(in oklab, #4099ff 62%, var(--color-surface));
+  --color-usage-heatmap-4: color-mix(in oklab, #80beff 78%, var(--color-surface));
+  --color-tab: #0a0a0a;
+  --color-tab-active: #000000;
+  --color-tab-border: var(--color-border);
+  --color-menu: #111111;
+  --color-menu-hover: #1c1c1c;
+  --color-primary: #ffffff;
+  --color-primary-foreground: #000000;
+  --color-secondary: #1c1c1c;
+  --color-interaction-ask-surface: #001d3d;
+  --color-interaction-ask-foreground: #80beff;
+  --color-interaction-ask-fill: rgba(70, 191, 114, 0.24);
+  --color-interaction-confirmation-surface: rgba(70, 191, 114, 0.16);
+  --color-interaction-confirmation-foreground: #87d9a4;
+  --color-foreground: var(--color-neutral-300);
+  --color-foreground-subtle: color-mix(in oklab, var(--color-neutral-300) 60%, transparent);
+  --color-foreground-subtlest: color-mix(in oklab, var(--color-neutral-300) 30%, transparent);
+  --color-foreground-inverse: #000000;
+  --color-success: #46bf72;
+  --color-success-foreground: #000000;
+  --color-idle-task: #7b5ce5;
+  --color-idle-task-surface: #160d38;
+  --color-destructive: #ff5c5c;
+  --color-destructive-foreground: #ffffff;
+  --color-warning: #ff8a30;
+  --color-feedback-privacy-hint: var(--color-yellow-300);
+  --color-warning-foreground: #000000;
+  --color-diff-added: #46bf72;
+  --color-diff-added-foreground: #000000;
+  --color-diff-removed: #ff5c5c;
+  --color-diff-removed-foreground: #000000;
+  --color-git-none: var(--color-foreground);
+  --color-git-modified: #ff8a30;
+  --color-git-added: #46bf72;
+  --color-git-deleted: #ff5c5c;
+  --color-git-renamed: #4099ff;
+  --color-git-untracked: #46bf72;
+  --color-git-ignored: var(--color-foreground-subtlest);
+  --color-git-descendant: #ff8a30;
+  --color-toast: #111111;
+  --color-tooltip: #111111;
+  --color-tooltip-foreground: #f8f8f8;
+  --color-tooltip-tag: #1c1c1c;
+  --color-tooltip-tag-foreground: #adadad;
+  --color-tag: #1c1c1c;
+  --color-file-node: rgba(112, 174, 224, 0.16);
+  --color-file-node-hover: rgba(112, 174, 224, 0.22);
+  --color-file-node-foreground: #8fc5ef;
+  --color-skill-node: rgba(166, 137, 218, 0.16);
+  --color-skill-node-hover: rgba(166, 137, 218, 0.22);
+  --color-skill-node-foreground: #bda5e6;
+  --color-command-node: rgba(154, 166, 180, 0.14);
+  --color-command-node-hover: rgba(154, 166, 180, 0.2);
+  --color-command-node-foreground: #b5c0cc;
+  --color-subagent-node: rgba(183, 189, 117, 0.16);
+  --color-subagent-node-hover: rgba(183, 189, 117, 0.22);
+  --color-subagent-node-foreground: #c8cd90;
+  --color-session-node: rgba(104, 196, 188, 0.16);
+  --color-session-node-hover: rgba(104, 196, 188, 0.22);
+  --color-session-node-foreground: #93d8d2;
+  --color-plugin-node: rgba(224, 174, 112, 0.16);
+  --color-plugin-node-hover: rgba(224, 174, 112, 0.22);
+  --color-plugin-node-foreground: #efc58f;
+  --color-plugin-paid-plan-badge: #5a341b;
+  --color-plugin-paid-plan-badge-foreground: #ffd8b8;
+}
+
+
+/*
  * 之前只有 task 列表单独定制了滚动条，其他面板、下拉列表、代码区仍然保留系统默认样式，
  * 同一套界面里会出现粗细、圆角和轨道背景都不一致的问题。这里把这套透明轨道 + 圆角 thumb
  * 提升成全局原生滚动条样式，让 desktop/web、明暗主题下的视觉表现保持统一。

@@ -1660,6 +1660,7 @@ const enUS: Record<string, string> = {
   "settings.themeOption.zai-light": "Zai Light",
   "settings.themeOption.zai-dark": "Zai Dark",
   "settings.themeOption.hacker-dark": "Hacker",
+  "settings.themeOption.oled-black": "OLED Black",
   "settings.appearanceTitle": "Appearance",
   "settings.shortcuts.title": "Keyboard Shortcuts",
   "settings.shortcuts.searchPlaceholder": "Search shortcuts",

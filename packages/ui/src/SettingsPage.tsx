@@ -82,7 +82,7 @@ import {
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
-import type { Theme } from "@/useTheme.js";
+import { isTheme } from "@/useTheme.js";
 import { WindowsTopLeftLogo } from "@/WindowsTopLeftLogo.js";
 
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
@@ -1274,17 +1274,14 @@ export function SettingsPage({
   );
   const handleFooterThemeChange = useCallback(
     (value: string) => {
-      if (
-        value === "light" ||
-        value === "dark" ||
-        value === "zai-light" ||
-        value === "zai-dark" ||
-        value === "hacker-dark" ||
-        value === "system"
-      ) {
+      // 主题合法性校验必须用 useTheme 的单源守卫：这里曾硬编码六项白名单，
+      // 新增主题（如深色主题包）没同步就会在这里被静默丢弃——表现为
+      // 「菜单里有选项、点击切换没反应」。isTheme 由 useTheme 导出且与
+      // THEME_CLASS_IDS 同源维护。
+      if (isTheme(value)) {
         runUserAction({
           input: { featureId: "settings.appearance", action: "change_theme", trigger: "select" },
-          operation: () => setTheme(value as Theme),
+          operation: () => setTheme(value),
           completed: { resultSource: "local_commit", valueAfter: value },
           failureStage: "local_commit",
         });

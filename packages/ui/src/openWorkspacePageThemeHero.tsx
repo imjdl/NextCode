@@ -60,6 +60,17 @@ function getThemeHeroPalette(theme: Theme): ThemeHeroPalette {
         heading: "text-[#EAFFF0]",
         description: "text-[#9FD8B0]",
       };
+    case "oled-black":
+      return {
+        meshBase: "#000000",
+        meshLight: "#4099ff",
+        panel:
+          "bg-[linear-gradient(180deg,#000000_0%,#0a0a0a_45%,#101010_100%)] before:absolute before:inset-0 before:content-[''] before:bg-[radial-gradient(circle_at_18%_18%,rgba(64,153,255,0.14),transparent_22%),radial-gradient(circle_at_80%_14%,rgba(70,191,114,0.1),transparent_24%),radial-gradient(circle_at_66%_82%,rgba(123,92,229,0.1),transparent_26%)]",
+        glowPrimary: "bg-[#4099FF]/18 mix-blend-screen",
+        glowSecondary: "bg-[#46BF72]/12 mix-blend-screen",
+        heading: "text-[#F8F8F8]",
+        description: "text-[#ADADAD]",
+      };
     case "dark":
     case "system":
     default:

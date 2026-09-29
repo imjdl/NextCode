@@ -22,6 +22,7 @@ export const THEME_OPTIONS: readonly ThemeOption[] = [
   { id: "zai-dark", labelId: "settings.themeOption.zai-dark", icon: "dark" },
   { id: "zai-light", labelId: "settings.themeOption.zai-light", icon: "light" },
   { id: "hacker-dark", labelId: "settings.themeOption.hacker-dark", icon: "hacker" },
+  { id: "oled-black", labelId: "settings.themeOption.oled-black", icon: "dark" },
 ];
 
 /**

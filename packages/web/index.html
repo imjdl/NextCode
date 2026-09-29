@@ -23,14 +23,28 @@
           light: "#f8f8f8",
           // 黑客主题底色；不在这里登记会在刷新首帧闪一帧 zai-dark 的 #161616。
           "theme-hacker-dark": "#050a06",
+          // 纯黑主题底色（OLED）；同上防首帧闪烁。
+          "theme-oled-black": "#000000",
         };
+
+        const THEMED_CLASSES = new Set(["hacker-dark", "oled-black"]);
+        // 合法主题 id 清单（与 ui/useTheme isTheme 同源维护）。存量脏值（如选过
+        // 已撤主题）在此消毒回默认，否则首屏落到无主题类+白底、React 也按脏值处理。
+        const VALID_THEMES = new Set([
+          ...THEMED_CLASSES,
+          "zai-dark",
+          "zai-light",
+          "dark",
+          "light",
+          "system",
+        ]);
 
         const normalizeResolvedTheme = (theme) => {
           if (theme === "dark") return "dark";
           if (theme === "light") return "light";
           if (theme === "zai-dark") return "dark";
           if (theme === "zai-light") return "light";
-          if (theme === "hacker-dark") return "theme-hacker-dark";
+          if (THEMED_CLASSES.has(theme)) return "theme-" + theme;
           return theme;
         };
 
@@ -44,7 +58,12 @@
         };
 
         try {
-          const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+          let saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+          if (!VALID_THEMES.has(saved)) {
+            // 消毒已撤/未知主题：写回默认值，让后续所有读取方（React/broadcast）拿到合法值。
+            saved = DEFAULT_THEME;
+            localStorage.setItem(STORAGE_KEY, saved);
+          }
           const resolved =
             saved === "system"
               ? window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches

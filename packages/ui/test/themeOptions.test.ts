@@ -13,6 +13,7 @@ const THEME_UNION: Record<Theme, true> = {
   "zai-light": true,
   "zai-dark": true,
   "hacker-dark": true,
+  "oled-black": true,
 };
 
 test("主题选项 id 不重复，且都来自 Theme 联合", () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 
-export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "hacker-dark" | "system";
+export type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "hacker-dark" | "oled-black" | "system";
 export type ResolvedTheme = "light" | "dark";
 
 const STORAGE_KEY = "zcode-theme";
@@ -9,19 +9,26 @@ const BROWSER_THEME_SURFACE_ATTRIBUTE = "data-zcode-browser-theme-surface";
  * 主题类名注册表：`theme-<id>` 由 styles.css 的主题块定义。
  * applyTheme 按这份表清理旧类再挂当前类——新增主题只改这里，不散落在切换逻辑里。
  */
-const THEME_CLASS_IDS = ["zai-light", "zai-dark", "hacker-dark"] as const;
+const THEME_CLASS_IDS = ["zai-light", "zai-dark", "hacker-dark", "oled-black"] as const;
 type ThemeClassId = (typeof THEME_CLASS_IDS)[number];
 
 function getSystemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+const DARK_THEME_IDS: ReadonlySet<string> = new Set([
+  "dark",
+  "zai-dark",
+  "hacker-dark",
+  "oled-black",
+]);
+
 export function resolveTheme(theme: Theme): ResolvedTheme {
   if (theme === "system") {
     return getSystemTheme();
   }
 
-  return theme === "dark" || theme === "zai-dark" || theme === "hacker-dark" ? "dark" : "light";
+  return DARK_THEME_IDS.has(theme) ? "dark" : "light";
 }
 
 export function normalizeThemePreference(theme: Theme): Theme {
@@ -77,13 +84,15 @@ export function applyTheme(theme: Theme) {
   syncBrowserThemeSurface(resolved);
 }
 
-function isTheme(value: string | null): value is Theme {
+/** 主题 id 合法性守卫（单源）：UI 层的变更入口用它过滤，禁止各自维护白名单。 */
+export function isTheme(value: string | null): value is Theme {
   return (
     value === "light" ||
     value === "dark" ||
     value === "zai-light" ||
     value === "zai-dark" ||
     value === "hacker-dark" ||
+    value === "oled-black" ||
     value === "system"
   );
 }

@@ -1,4 +1,11 @@
-type WebThemeSeed = "light" | "dark" | "zai-light" | "zai-dark" | "hacker-dark" | "system";
+type WebThemeSeed =
+  | "light"
+  | "dark"
+  | "zai-light"
+  | "zai-dark"
+  | "hacker-dark"
+  | "oled-black"
+  | "system";
 
 export const WEB_DEFAULT_THEME: WebThemeSeed = "zai-dark";
 
@@ -9,6 +16,7 @@ function isWebThemeSeed(value: unknown): value is WebThemeSeed {
     value === "zai-light" ||
     value === "zai-dark" ||
     value === "hacker-dark" ||
+    value === "oled-black" ||
     value === "system"
   );
 }
