@@ -236,13 +236,24 @@ function materializeDraftUnit(
   options: BuildConversationTurnRenderUnitsOptions,
 ): ConversationTurnRenderUnit {
   const workflowLaunch = resolveWorkflowLaunchMeta(draft.header, draft.userInputs);
+  const isRunning = resolveTurnRunning(draft, options);
+  // 模型切换标记是**过程性**提示：只在所在轮次仍在 running 时渲染（specs/model-change-marker.md）。
+  // 轮次一旦终态——实时完成/中断/失败，或历史回放、重启水合重建的既有轮——
+  // 切换提示一律退出时间线。此前轮次边界/恢复路径写入的 model_change 记录（含
+  // from 为空的源缺失记录）会在历史里永久回放，历次「标签相同抑制」只覆盖
+  // 标签相等一种形态，这里在装配入口统一收口，覆盖全部写入与水合路径。
+  const dropStaleModelChange = (row: ConversationRow): boolean =>
+    row.kind === "timelineMarker" && row.marker.type === "modelChange" && !isRunning;
   // 启动轮的用户行由 run 卡代言，不进可见输入也不进流。
-  const renderedRows =
+  const renderedRows = (
     workflowLaunch === undefined
       ? draft.orderedRows
-      : draft.orderedRows.filter((row) => !isWorkflowLaunchUserInputRow(row));
+      : draft.orderedRows.filter((row) => !isWorkflowLaunchUserInputRow(row))
+  ).filter((row) => !dropStaleModelChange(row));
   const visibleUserInputs = renderedRows.filter(isUserInputRow);
-  const visibleAssistantWorkRows = draft.assistantWorkRows.filter(isVisibleAssistantWorkRow);
+  const visibleAssistantWorkRows = draft.assistantWorkRows.filter(
+    (row) => isVisibleAssistantWorkRow(row) && !dropStaleModelChange(row),
+  );
   const visibleOrderedRows = renderedRows.filter(isVisibleConversationRow);
   const timelineOnly =
     visibleUserInputs.length === 0 &&
@@ -277,7 +288,6 @@ function materializeDraftUnit(
     : splitTurnTailRows(nonBrowserRows);
 
   const isLastTurn = index === total - 1;
-  const isRunning = resolveTurnRunning(draft, options);
   const isInterrupted = draft.header
     ? draft.header.state === "completedInterrupted"
     : options.sessionPhase === "completedInterrupted";
